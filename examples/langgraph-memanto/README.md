@@ -29,7 +29,7 @@ START
 ## Setup
 
 ```bash
-cd examples/langgraph-memanto
+cd examples/langgraph-memanto/
 
 python -m venv .venv
 source .venv/bin/activate
