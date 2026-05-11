@@ -44,21 +44,30 @@ cp examples/langgraph-memanto/.env.example examples/langgraph-memanto/.env
 
 Use the **same `--agent-id`** for both runs.
 
-### 1) Day 1: store memory
+### 1) Store memory
 
 ```bash
 python examples/langgraph-memanto/langraph.py \
-  --scenario day1 \
+  --store \
   --agent-id langgraph-support-demo
 ```
 
 This stores memories such as customer name and urgent-contact preference.
 
-### 2) Day 2: recall from yesterday in a new session
+To store your own information, pass a custom store message:
 
 ```bash
 python examples/langgraph-memanto/langraph.py \
-  --scenario day2 \
+  --store \
+  --store-message "My name is Alex. For urgent updates, call me instead of email." \
+  --agent-id langgraph-support-demo
+```
+
+### 2) Retrieve from a new session
+
+```bash
+python examples/langgraph-memanto/langraph.py \
+  --retrieve \
   --agent-id langgraph-support-demo
 ```
 

@@ -249,21 +249,22 @@ def build_graph(memory_layer: MemantoMemoryLayer):
     return workflow.compile()
 
 
-def _scenario_message(scenario: str, custom_message: str | None) -> tuple[str, str]:
-    if custom_message:
-        return custom_message, "custom"
-
-    if scenario == "day1":
+def _mode_message(
+    mode: Literal["store", "retrieve"],
+    store_message: str | None,
+    retrieve_message: str | None,
+) -> tuple[str, str]:
+    if mode == "store":
         return (
-            "Hi, my name is Sarah. For urgent updates, I prefer SMS instead of email.",
-            "day1",
+            store_message
+            or "Hi, my name is Sarah. For urgent updates, I prefer SMS instead of email.",
+            "store",
         )
-    if scenario == "day2":
-        return (
-            "Can you remind me from yesterday what channel I prefer for urgent updates?",
-            "day2",
-        )
-    raise ValueError(f"Unsupported scenario: {scenario}")
+    return (
+        retrieve_message
+        or "Can you remind me from yesterday what channel I prefer for urgent updates?",
+        "retrieve",
+    )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -275,15 +276,24 @@ def _parse_args() -> argparse.Namespace:
         default="langgraph-support-demo",
         help="Memanto agent id used as the persistent memory namespace.",
     )
-    parser.add_argument(
-        "--scenario",
-        choices=["day1", "day2"],
-        default="day1",
-        help="Preset conversation turn to run. Execute day1 first, day2 second.",
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--store",
+        action="store_true",
+        help="Run a store turn to persist user details into memory.",
+    )
+    mode_group.add_argument(
+        "--retrieve",
+        action="store_true",
+        help="Run a retrieve turn to recall previously stored preferences.",
     )
     parser.add_argument(
-        "--message",
-        help="Custom user message. If provided, it overrides --scenario text.",
+        "--store-message",
+        help="Custom message used for --store, allowing you to choose what to save.",
+    )
+    parser.add_argument(
+        "--retrieve-message",
+        help="Custom message used for --retrieve.",
     )
     return parser.parse_args()
 
@@ -295,11 +305,11 @@ def _load_local_env() -> None:
     load_dotenv()
 
 
-def _print_next_step_hint(agent_id: str, scenario: str) -> None:
-    if scenario == "day1":
-        print("\nTip: run day2 next to verify cross-session recall:")
+def _print_next_step_hint(agent_id: str, mode: Literal["store", "retrieve"]) -> None:
+    if mode == "store":
+        print("\nTip: run retrieve next to verify cross-session recall:")
         script_name = Path(__file__).name
-        print(f"python {script_name} --scenario day2 --agent-id {agent_id}")
+        print(f"python {script_name} --retrieve --agent-id {agent_id}")
 
 
 def main() -> None:
@@ -314,7 +324,12 @@ def main() -> None:
         )
         sys.exit(1)
 
-    user_message, session_label = _scenario_message(args.scenario, args.message)
+    mode: Literal["store", "retrieve"] = "retrieve" if args.retrieve else "store"
+    user_message, session_label = _mode_message(
+        mode=mode,
+        store_message=args.store_message,
+        retrieve_message=args.retrieve_message,
+    )
 
     memory_layer = MemantoMemoryLayer(api_key=api_key, agent_id=args.agent_id)
     memory_layer.setup_session()
@@ -341,7 +356,7 @@ def main() -> None:
             print("\n=== Stored Memory IDs ===")
             for memory_id in stored:
                 print(f"- {memory_id}")
-        _print_next_step_hint(args.agent_id, args.scenario)
+        _print_next_step_hint(args.agent_id, mode)
     finally:
         memory_layer.close_session()
 
