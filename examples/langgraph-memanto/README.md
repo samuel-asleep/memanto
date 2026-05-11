@@ -1,21 +1,58 @@
 # LangGraph + Memanto Long-Term Memory Example
 
-This example is a customer support workflow where LangGraph handles the active
-turn and Memanto acts as the long-term memory layer outside of LangGraph state.
-It demonstrates **cross-session recall**: the agent stores customer details in a
-"yesterday" run, then a brand-new graph instance and thread id recall those
-details in a "today" run without passing the prior conversation back into state.
+This example shows a customer support agent where **LangGraph owns the active
+workflow** and **Memanto owns durable long-term memory**. The graph keeps only the
+current turn in state, while customer facts and preferences are stored in Memanto
+so they can be recalled by later graph instances, new thread ids, or separate
+processes.
 
-## What the workflow demonstrates
+The scenario is intentionally simple:
 
-- `workflow.py` defines a `StateGraph` with three nodes:
-  1. `recall_customer_context` searches Memanto for durable memories.
-  2. `capture_new_memories` stores explicit facts/preferences from the current turn.
-  3. `draft_support_reply` writes a support response grounded in recalled memory.
-- `memanto_memory.py` is a focused adapter around Memanto's `SdkClient`.
-- `langraph.py` runs two disjoint sessions with different LangGraph thread ids:
-  - **Session 1 / yesterday** stores the customer's name, plan, invoice issue, and refund preference.
-  - **Session 2 / today** starts with only a new user message, then recalls yesterday's refund and billing context from Memanto.
+1. A simulated "yesterday" support interaction stores customer facts in Memanto.
+2. A simulated "today" interaction starts with a fresh LangGraph graph/thread and
+   only a new user message.
+3. The agent retrieves yesterday's customer context from Memanto and uses it in
+   the response.
+
+## Video walkthrough
+
+> Placeholder: add a 30-second GIF or video link here before final submission.
+>
+> Suggested recording: run `langraph.py`, show the first session storing four
+> memories, then show the second session recalling the refund preference, invoice,
+> plan, and customer name from Memanto.
+
+## Architecture
+
+```text
+User turn
+  ↓
+LangGraph StateGraph
+  ├─ recall_customer_context  → Memanto semantic recall
+  ├─ capture_new_memories     → Memanto durable writes
+  └─ draft_support_reply      → response grounded in recalled memories
+```
+
+### Components
+
+- `workflow.py` builds the LangGraph `StateGraph` with recall, write, and reply
+  nodes.
+- `memanto_memory.py` wraps Memanto's `SdkClient` behind a small
+  `MemantoLongTermMemory` adapter.
+- `langraph.py` is the live walkthrough script that simulates the yesterday and
+  today sessions.
+- `smoke_test.py` validates the same cross-session contract offline with a fake
+  persistent memory adapter.
+
+## Why Memanto is outside LangGraph state
+
+`SupportState` contains only transient fields for the current turn:
+`customer_id`, `user_message`, `recalled_memories`, `stored_memory_ids`, and
+`response`.
+
+Durable facts are not checkpointed in LangGraph. They are written to the Memanto
+namespace for `MEMANTO_LANGGRAPH_AGENT_ID`, which lets later runs retrieve them
+without replaying the previous conversation or reusing the previous thread state.
 
 ## Setup
 
@@ -29,39 +66,26 @@ pip install -r examples/langgraph-memanto/requirements.txt
 cp examples/langgraph-memanto/.env.example examples/langgraph-memanto/.env
 ```
 
-Edit `examples/langgraph-memanto/.env` and set `MOORCHEH_API_KEY`.
+Edit `examples/langgraph-memanto/.env` and set `MOORCHEH_API_KEY` for the live
+Memanto-backed walkthrough.
 
-## Run the demo
+## Expected live behavior
 
-```bash
-cd examples/langgraph-memanto
-python langraph.py
-```
+The live walkthrough stores four memories during the first session:
 
-Expected behavior:
+- customer name: Maya
+- subscription plan: Pro
+- billing issue: invoice `INV-4421`
+- refund preference: account credit
 
-1. The first run says it stored new memory item(s) in Memanto.
-2. The second run prints that it found cross-session context in Memanto.
-3. The recalled memories include information from the first run even though the
-   second invocation only supplied `customer_id` and a fresh `user_message`.
+The second session starts from a fresh graph/thread and should recall those
+memories from Memanto even though the second input only contains the current
+`customer_id` and `user_message`.
 
+## Offline validation
 
-## Test the Issue #397 Acceptance Criteria
-
-Use the following checks to validate the bounty requirements from [issue #397](https://github.com/moorcheh-ai/memanto/issues/397):
-
-| Requirement | How to verify |
-| --- | --- |
-| LangGraph workflow exists | `workflow.py` builds a `StateGraph` with recall, memory-capture, and reply nodes. |
-| Memanto is outside LangGraph state | `SupportState` only has transient turn fields; durable facts are read/written through `MemantoLongTermMemory`. |
-| Cross-session recall | Session 1 stores memories; Session 2 uses a new graph object and new thread id with only `customer_id` and `user_message` in state. |
-| Clean single-folder example | All runnable code and docs are in `examples/langgraph-memanto/`. |
-
-### Fast offline smoke test
-
-This does **not** call Moorcheh. It uses a fake persistent memory object to prove
-that the LangGraph workflow itself keeps durable memory outside the graph state
-and can recall it from a fresh graph/thread.
+Use the smoke test when you want to verify the LangGraph wiring without a
+Moorcheh API key:
 
 ```bash
 python examples/langgraph-memanto/smoke_test.py
@@ -69,29 +93,6 @@ python examples/langgraph-memanto/smoke_test.py
 
 Pass condition: the command prints
 `✅ Offline cross-session recall contract passed.`
-
-### Live Memanto integration test
-
-Use this when you want to verify the real Memanto/Moorcheh storage path:
-
-```bash
-cp examples/langgraph-memanto/.env.example examples/langgraph-memanto/.env
-# edit .env and set MOORCHEH_API_KEY
-cd examples/langgraph-memanto
-python langraph.py
-```
-
-Pass condition: the "today" session prints recalled memories from yesterday,
-including Maya's Pro plan, invoice `INV-4421`, and account-credit refund
-preference, even though the today invocation only supplied a fresh user message.
-
-## Why this is outside normal LangGraph state
-
-The `SupportState` only contains transient fields for the current turn:
-`customer_id`, `user_message`, `recalled_memories`, `stored_memory_ids`, and
-`response`. Durable facts are not checkpointed in LangGraph. They live in the
-Memanto namespace for `MEMANTO_LANGGRAPH_AGENT_ID`, so they are available across
-new graph objects, new thread ids, and separate processes.
 
 ## Files
 
