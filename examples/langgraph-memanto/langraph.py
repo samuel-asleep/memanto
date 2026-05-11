@@ -10,11 +10,11 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
+from dotenv import load_dotenv
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
 from memanto.cli.client.sdk_client import SdkClient
-from dotenv import load_dotenv
 
 
 class SupportState(TypedDict, total=False):
@@ -297,7 +297,9 @@ def _load_local_env() -> None:
 def _print_next_step_hint(agent_id: str, scenario: str) -> None:
     if scenario == "day1":
         print("\nTip: run day2 next to verify cross-session recall:")
-        print(f"python examples/langgraph-memanto/langraph.py --scenario day2 --agent-id {agent_id}")
+        print(
+            f"python examples/langgraph-memanto/langraph.py --scenario day2 --agent-id {agent_id}"
+        )
 
 
 def main() -> None:
