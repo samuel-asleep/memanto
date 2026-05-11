@@ -297,9 +297,8 @@ def _load_local_env() -> None:
 def _print_next_step_hint(agent_id: str, scenario: str) -> None:
     if scenario == "day1":
         print("\nTip: run day2 next to verify cross-session recall:")
-        print(
-            f"python examples/langgraph-memanto/langraph.py --scenario day2 --agent-id {agent_id}"
-        )
+        script_name = Path(__file__).name
+        print(f"python {script_name} --scenario day2 --agent-id {agent_id}")
 
 
 def main() -> None:
@@ -309,7 +308,7 @@ def main() -> None:
     if not api_key:
         print("Error: MOORCHEH_API_KEY or MEMANTO_API_KEY is not set.")
         print(
-            "Create /home/runner/work/memanto/memanto/examples/langgraph-memanto/.env "
+            "Create examples/langgraph-memanto/.env "
             "with MOORCHEH_API_KEY=<your-key> (or MEMANTO_API_KEY=<your-key>)."
         )
         sys.exit(1)
