@@ -58,15 +58,15 @@ class MemantoSessionManager:
                 ),
             )
             logger.info("Created Memanto agent '%s'", self.agent_id)
-        except Exception as exc:
+        except Exception:
             try:
                 self.client.get_agent(self.agent_id)
                 logger.info("Memanto agent '%s' already exists, reusing", self.agent_id)
-            except Exception:
+            except Exception as get_exc:
                 logger.exception("Failed to create Memanto agent '%s'", self.agent_id)
                 raise RuntimeError(
                     f"Unable to create or reuse Memanto agent '{self.agent_id}'"
-                ) from exc
+                ) from get_exc
 
         self.client.activate_agent(self.agent_id, duration_hours=6)
         logger.info("Activated session for agent '%s'", self.agent_id)
@@ -178,14 +178,12 @@ class MemoryAwareSupportAssistant:
             "memory_to_store": memory_candidate or {},
         }
 
-    def route_support(self, state: AssistantState) -> AssistantState:
+    def route_support(self, _state: AssistantState) -> AssistantState:
         """Support branch for normal customer-help requests."""
-        _ = state
         return {}
 
-    def route_research(self, state: AssistantState) -> AssistantState:
+    def route_research(self, _state: AssistantState) -> AssistantState:
         """Research branch for analysis-heavy requests."""
-        _ = state
         return {}
 
     def compose_response(self, state: AssistantState) -> AssistantState:
