@@ -28,7 +28,7 @@ From repository root:
 
 ```bash
 pip install -e ".[all]"
-pip install -r /home/runner/work/memanto/memanto/examples/langgraph-memanto/requirements.txt
+pip install -r examples/langgraph-memanto/requirements.txt
 ```
 
 Export API key:
@@ -44,7 +44,7 @@ Use the **same `--agent-id`** for both runs.
 ### 1) Day 1: store memory
 
 ```bash
-python /home/runner/work/memanto/memanto/examples/langgraph-memanto/langgraph_memanto_support_agent.py \
+python examples/langgraph-memanto/langgraph_memanto_support_agent.py \
   --scenario day1 \
   --agent-id langgraph-support-demo
 ```
@@ -54,7 +54,7 @@ This stores memories such as customer name and urgent-contact preference.
 ### 2) Day 2: recall from yesterday in a new session
 
 ```bash
-python /home/runner/work/memanto/memanto/examples/langgraph-memanto/langgraph_memanto_support_agent.py \
+python examples/langgraph-memanto/langgraph_memanto_support_agent.py \
   --scenario day2 \
   --agent-id langgraph-support-demo
 ```
