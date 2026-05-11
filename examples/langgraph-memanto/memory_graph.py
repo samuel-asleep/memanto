@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
@@ -36,6 +36,7 @@ class MemantoSessionManager:
     api_key: str
     agent_id: str
     pattern: str = "support"
+    client: SdkClient = field(init=False)
 
     def __post_init__(self) -> None:
         self.client = SdkClient(api_key=self.api_key)
@@ -147,11 +148,16 @@ class MemoryAwareSupportAssistant:
             "trend",
         )
 
-        intent = "research" if any(word in message for word in research_words) else "support"
-        should_store = self._extract_memory_from_message(
-            state["user_id"],
-            state["user_message"],
-        ) is not None
+        intent = (
+            "research" if any(word in message for word in research_words) else "support"
+        )
+        should_store = (
+            self._extract_memory_from_message(
+                state["user_id"],
+                state["user_message"],
+            )
+            is not None
+        )
 
         return {
             "intent": intent,
@@ -239,7 +245,7 @@ class MemoryAwareSupportAssistant:
             "user_message": message,
         }
 
-        return self.graph.invoke(initial_state)
+        return cast(AssistantState, self.graph.invoke(initial_state))
 
     @staticmethod
     def _build_recall_query(user_id: str, user_message: str) -> str:
@@ -251,7 +257,9 @@ class MemoryAwareSupportAssistant:
     @staticmethod
     def _infer_style(memories: list[dict[str, Any]]) -> str:
         text = " ".join(
-            str(item.get("content", "")).lower() for item in memories if item.get("content")
+            str(item.get("content", "")).lower()
+            for item in memories
+            if item.get("content")
         )
         if "bullet" in text:
             return "bullet"
