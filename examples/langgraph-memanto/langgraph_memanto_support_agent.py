@@ -7,7 +7,6 @@ import argparse
 import os
 import re
 import sys
-from collections.abc import Callable
 from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
@@ -140,7 +139,10 @@ class MemantoMemoryLayer:
 
     def recall(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
         result = self.client.recall(agent_id=self.agent_id, query=query, limit=limit)
-        return result.get("memories", [])
+        memories = result.get("memories", [])
+        if not isinstance(memories, list):
+            return []
+        return [memory for memory in memories if isinstance(memory, dict)]
 
     def remember(self, memory: dict[str, Any]) -> str:
         result = self.client.remember(
@@ -193,7 +195,11 @@ def build_graph(memory_layer: MemantoMemoryLayer):
                     "I could not find a stored urgent-contact preference yet. "
                     "Tell me your preference and I will store it for future sessions."
                 )
-            return {"response": response, "write_memory": False, "memory_candidates": []}
+            return {
+                "response": response,
+                "write_memory": False,
+                "memory_candidates": [],
+            }
 
         candidates = _build_memory_candidates(message)
         if candidates:
