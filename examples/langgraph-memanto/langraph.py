@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """LangGraph + Memanto cross-session customer support memory demo."""
 
 from __future__ import annotations
@@ -290,6 +290,7 @@ def _parse_args() -> argparse.Namespace:
 
 def _load_local_env() -> None:
     script_dir = Path(__file__).resolve().parent
+    # Prefer the example-local .env file, then allow a cwd .env fallback.
     load_dotenv(script_dir / ".env")
     load_dotenv()
 
