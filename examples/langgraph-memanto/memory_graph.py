@@ -58,8 +58,15 @@ class MemantoSessionManager:
                 ),
             )
             logger.info("Created Memanto agent '%s'", self.agent_id)
-        except Exception:
-            logger.info("Memanto agent '%s' already exists, reusing", self.agent_id)
+        except Exception as exc:
+            try:
+                self.client.get_agent(self.agent_id)
+                logger.info("Memanto agent '%s' already exists, reusing", self.agent_id)
+            except Exception:
+                logger.exception("Failed to create Memanto agent '%s'", self.agent_id)
+                raise RuntimeError(
+                    f"Unable to create or reuse Memanto agent '{self.agent_id}'"
+                ) from exc
 
         self.client.activate_agent(self.agent_id, duration_hours=6)
         logger.info("Activated session for agent '%s'", self.agent_id)
@@ -69,8 +76,11 @@ class MemantoSessionManager:
         """Deactivate active Memanto session."""
         try:
             self.client.deactivate_agent(self.agent_id)
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to deactivate agent '%s'", self.agent_id)
+            raise RuntimeError(
+                f"Unable to deactivate Memanto agent '{self.agent_id}'"
+            ) from exc
 
 
 class MemoryAwareSupportAssistant:
