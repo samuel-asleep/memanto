@@ -45,6 +45,46 @@ Expected behavior:
 3. The recalled memories include information from the first run even though the
    second invocation only supplied `customer_id` and a fresh `user_message`.
 
+
+## Test the Issue #397 Acceptance Criteria
+
+Use the following checks to validate the bounty requirements from [issue #397](https://github.com/moorcheh-ai/memanto/issues/397):
+
+| Requirement | How to verify |
+| --- | --- |
+| LangGraph workflow exists | `workflow.py` builds a `StateGraph` with recall, memory-capture, and reply nodes. |
+| Memanto is outside LangGraph state | `SupportState` only has transient turn fields; durable facts are read/written through `MemantoLongTermMemory`. |
+| Cross-session recall | Session 1 stores memories; Session 2 uses a new graph object and new thread id with only `customer_id` and `user_message` in state. |
+| Clean single-folder example | All runnable code and docs are in `examples/langgraph-memanto/`. |
+
+### Fast offline smoke test
+
+This does **not** call Moorcheh. It uses a fake persistent memory object to prove
+that the LangGraph workflow itself keeps durable memory outside the graph state
+and can recall it from a fresh graph/thread.
+
+```bash
+python examples/langgraph-memanto/smoke_test.py
+```
+
+Pass condition: the command prints
+`✅ Offline cross-session recall contract passed.`
+
+### Live Memanto integration test
+
+Use this when you want to verify the real Memanto/Moorcheh storage path:
+
+```bash
+cp examples/langgraph-memanto/.env.example examples/langgraph-memanto/.env
+# edit .env and set MOORCHEH_API_KEY
+cd examples/langgraph-memanto
+python demo.py
+```
+
+Pass condition: the "today" session prints recalled memories from yesterday,
+including Maya's Pro plan, invoice `INV-4421`, and account-credit refund
+preference, even though the today invocation only supplied a fresh user message.
+
 ## Why this is outside normal LangGraph state
 
 The `SupportState` only contains transient fields for the current turn:
@@ -62,5 +102,6 @@ examples/langgraph-memanto/
 ├── demo.py
 ├── memanto_memory.py
 ├── requirements.txt
+├── smoke_test.py
 └── workflow.py
 ```
