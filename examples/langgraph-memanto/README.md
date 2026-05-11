@@ -19,7 +19,7 @@ examples/langgraph-memanto/
 ## Prerequisites
 
 - Python 3.10+
-- `MOORCHEH_API_KEY` environment variable
+- `MOORCHEH_API_KEY` (or `MEMANTO_API_KEY`) environment variable
 - Memanto installed from this repository (or `pip install memanto`)
 
 ## Setup
@@ -35,6 +35,7 @@ Export API key:
 
 ```bash
 export MOORCHEH_API_KEY="your-key-here"
+# or: export MEMANTO_API_KEY="your-key-here"
 ```
 
 ## Run the Cross-Session Demo

@@ -288,9 +288,9 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = _parse_args()
-    api_key = os.environ.get("MOORCHEH_API_KEY")
+    api_key = os.environ.get("MOORCHEH_API_KEY") or os.environ.get("MEMANTO_API_KEY")
     if not api_key:
-        print("Error: MOORCHEH_API_KEY is not set.")
+        print("Error: MOORCHEH_API_KEY or MEMANTO_API_KEY is not set.")
         print("Set it in your environment before running this example.")
         sys.exit(1)
 
