@@ -1,0 +1,4 @@
+# Install from the repository root first so this example imports the local Memanto package:
+#   pip install -e ../..
+langgraph>=1.0.0
+python-dotenv>=1.0.0
