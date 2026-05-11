@@ -13,6 +13,10 @@ from memanto.cli.client.sdk_client import SdkClient
 
 logger = logging.getLogger(__name__)
 
+MAX_USER_ID_LENGTH = 40
+MAX_MEMORY_CONTENT_LENGTH = 500
+MAX_MEMORY_TITLE_LENGTH = 100
+
 
 class AssistantState(TypedDict, total=False):
     """State carried across LangGraph nodes."""
@@ -288,13 +292,15 @@ class MemoryAwareSupportAssistant:
         if not any(marker in lower for marker in preference_markers):
             return None
 
-        safe_user_id = "".join(ch for ch in user_id if ch.isalnum() or ch in "-_")[:40]
+        safe_user_id = "".join(ch for ch in user_id if ch.isalnum() or ch in "-_")[
+            :MAX_USER_ID_LENGTH
+        ]
         safe_user_id = safe_user_id or "user"
         title = f"Preference for {safe_user_id}"
-        content = message[:500]
+        content = message[:MAX_MEMORY_CONTENT_LENGTH]
         return {
             "memory_type": "preference",
-            "title": title[:100],
+            "title": title[:MAX_MEMORY_TITLE_LENGTH],
             "content": content,
             "confidence": 0.95,
             "tags": ["user-profile", "langgraph-demo"],
