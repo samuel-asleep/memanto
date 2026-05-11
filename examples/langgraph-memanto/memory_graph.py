@@ -17,6 +17,8 @@ MAX_USER_ID_LENGTH = 40
 MAX_MEMORY_CONTENT_LENGTH = 500
 MAX_MEMORY_TITLE_LENGTH = 100
 ALLOWED_USER_ID_CHARS = "-_"
+DEFAULT_SESSION_DURATION_HOURS = 6
+DEFAULT_RECALL_LIMIT = 6
 
 
 class AssistantState(TypedDict, total=False):
@@ -41,6 +43,7 @@ class MemantoSessionManager:
     api_key: str
     agent_id: str
     pattern: str = "support"
+    session_duration_hours: int = DEFAULT_SESSION_DURATION_HOURS
     client: SdkClient = field(init=False)
 
     def __post_init__(self) -> None:
@@ -68,7 +71,10 @@ class MemantoSessionManager:
                     f"Unable to create or reuse Memanto agent '{self.agent_id}'"
                 ) from get_exc
 
-        self.client.activate_agent(self.agent_id, duration_hours=6)
+        self.client.activate_agent(
+            self.agent_id,
+            duration_hours=self.session_duration_hours,
+        )
         logger.info("Activated session for agent '%s'", self.agent_id)
         return self.client
 
@@ -138,7 +144,7 @@ class MemoryAwareSupportAssistant:
         result = self.client.recall(
             agent_id=self.agent_id,
             query=query,
-            limit=6,
+            limit=DEFAULT_RECALL_LIMIT,
         )
 
         memories = result.get("memories", [])
