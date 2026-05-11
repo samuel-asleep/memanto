@@ -76,7 +76,7 @@ class MemoryAwareSupportAssistant:
         self.agent_id = agent_id
         self.graph = self._build_graph()
 
-    def _build_graph(self):
+    def _build_graph(self) -> StateGraph:
         workflow = StateGraph(AssistantState)
 
         workflow.add_node("retrieve_context", self.retrieve_context)
@@ -151,22 +151,16 @@ class MemoryAwareSupportAssistant:
         intent = (
             "research" if any(word in message for word in research_words) else "support"
         )
-        should_store = (
-            self._extract_memory_from_message(
-                state["user_id"],
-                state["user_message"],
-            )
-            is not None
+        memory_candidate = self._extract_memory_from_message(
+            state["user_id"],
+            state["user_message"],
         )
+        should_store = memory_candidate is not None
 
         return {
             "intent": intent,
             "should_store": should_store,
-            "memory_to_store": self._extract_memory_from_message(
-                state["user_id"],
-                state["user_message"],
-            )
-            or {},
+            "memory_to_store": memory_candidate or {},
         }
 
     def route_support(self, state: AssistantState) -> AssistantState:
@@ -294,7 +288,9 @@ class MemoryAwareSupportAssistant:
         if not any(marker in lower for marker in preference_markers):
             return None
 
-        title = f"Preference for {user_id}"
+        safe_user_id = "".join(ch for ch in user_id if ch.isalnum() or ch in "-_")[:40]
+        safe_user_id = safe_user_id or "user"
+        title = f"Preference for {safe_user_id}"
         content = message[:500]
         return {
             "memory_type": "preference",
