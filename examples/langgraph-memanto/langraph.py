@@ -7,12 +7,14 @@ import argparse
 import os
 import re
 import sys
+from pathlib import Path
 from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
 from memanto.cli.client.sdk_client import SdkClient
+from dotenv import load_dotenv
 
 
 class SupportState(TypedDict, total=False):
@@ -286,12 +288,28 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _load_local_env() -> None:
+    script_dir = Path(__file__).resolve().parent
+    load_dotenv(script_dir / ".env")
+    load_dotenv()
+
+
+def _print_next_step_hint(agent_id: str, scenario: str) -> None:
+    if scenario == "day1":
+        print("\nTip: run day2 next to verify cross-session recall:")
+        print(f"python examples/langgraph-memanto/langraph.py --scenario day2 --agent-id {agent_id}")
+
+
 def main() -> None:
+    _load_local_env()
     args = _parse_args()
     api_key = os.environ.get("MOORCHEH_API_KEY") or os.environ.get("MEMANTO_API_KEY")
     if not api_key:
         print("Error: MOORCHEH_API_KEY or MEMANTO_API_KEY is not set.")
-        print("Set it in your environment before running this example.")
+        print(
+            "Create /home/runner/work/memanto/memanto/examples/langgraph-memanto/.env "
+            "with MOORCHEH_API_KEY=<your-key> (or MEMANTO_API_KEY=<your-key>)."
+        )
         sys.exit(1)
 
     user_message, session_label = _scenario_message(args.scenario, args.message)
@@ -321,6 +339,7 @@ def main() -> None:
             print("\n=== Stored Memory IDs ===")
             for memory_id in stored:
                 print(f"- {memory_id}")
+        _print_next_step_hint(args.agent_id, args.scenario)
     finally:
         memory_layer.close_session()
 

@@ -13,13 +13,13 @@ It demonstrates:
 examples/langgraph-memanto/
 ├── README.md
 ├── requirements.txt
-└── langgraph_memanto_support_agent.py
+└── langraph.py
 ```
 
 ## Prerequisites
 
 - Python 3.10+
-- `MOORCHEH_API_KEY` (or `MEMANTO_API_KEY`) environment variable
+- API key in `examples/langgraph-memanto/.env` (recommended) or shell env vars
 - Memanto installed from this repository (or `pip install memanto`)
 
 ## Setup
@@ -31,11 +31,13 @@ pip install -e ".[all]"
 pip install -r examples/langgraph-memanto/requirements.txt
 ```
 
-Export API key:
+Create `examples/langgraph-memanto/.env`:
 
 ```bash
-export MOORCHEH_API_KEY="your-key-here"
-# or: export MEMANTO_API_KEY="your-key-here"
+cp examples/langgraph-memanto/.env.example examples/langgraph-memanto/.env
+# Then edit examples/langgraph-memanto/.env and set one of:
+# MOORCHEH_API_KEY=your-key-here
+# MEMANTO_API_KEY=your-key-here
 ```
 
 ## Run the Cross-Session Demo
@@ -45,7 +47,7 @@ Use the **same `--agent-id`** for both runs.
 ### 1) Day 1: store memory
 
 ```bash
-python examples/langgraph-memanto/langgraph_memanto_support_agent.py \
+python examples/langgraph-memanto/langraph.py \
   --scenario day1 \
   --agent-id langgraph-support-demo
 ```
@@ -55,7 +57,7 @@ This stores memories such as customer name and urgent-contact preference.
 ### 2) Day 2: recall from yesterday in a new session
 
 ```bash
-python examples/langgraph-memanto/langgraph_memanto_support_agent.py \
+python examples/langgraph-memanto/langraph.py \
   --scenario day2 \
   --agent-id langgraph-support-demo
 ```
