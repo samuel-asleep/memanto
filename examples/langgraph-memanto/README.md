@@ -13,7 +13,7 @@ details in a "today" run without passing the prior conversation back into state.
   2. `capture_new_memories` stores explicit facts/preferences from the current turn.
   3. `draft_support_reply` writes a support response grounded in recalled memory.
 - `memanto_memory.py` is a focused adapter around Memanto's `SdkClient`.
-- `demo.py` runs two disjoint sessions with different LangGraph thread ids:
+- `langraph.py` runs two disjoint sessions with different LangGraph thread ids:
   - **Session 1 / yesterday** stores the customer's name, plan, invoice issue, and refund preference.
   - **Session 2 / today** starts with only a new user message, then recalls yesterday's refund and billing context from Memanto.
 
@@ -35,7 +35,7 @@ Edit `examples/langgraph-memanto/.env` and set `MOORCHEH_API_KEY`.
 
 ```bash
 cd examples/langgraph-memanto
-python demo.py
+python langraph.py
 ```
 
 Expected behavior:
@@ -78,7 +78,7 @@ Use this when you want to verify the real Memanto/Moorcheh storage path:
 cp examples/langgraph-memanto/.env.example examples/langgraph-memanto/.env
 # edit .env and set MOORCHEH_API_KEY
 cd examples/langgraph-memanto
-python demo.py
+python langraph.py
 ```
 
 Pass condition: the "today" session prints recalled memories from yesterday,
@@ -99,7 +99,7 @@ new graph objects, new thread ids, and separate processes.
 examples/langgraph-memanto/
 ├── .env.example
 ├── README.md
-├── demo.py
+├── langraph.py
 ├── memanto_memory.py
 ├── requirements.txt
 ├── smoke_test.py
