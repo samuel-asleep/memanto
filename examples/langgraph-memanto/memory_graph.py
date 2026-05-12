@@ -104,14 +104,16 @@ class MemoryAwareSupportAssistant:
     ) -> None:
         self.client = client
         self.agent_id = agent_id
-        self.llm_model = llm_model or os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+        self.llm_model = cast(
+            str, llm_model or os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+        )
         self.llm_client = llm_client
         if self.llm_client is None and os.getenv("OPENAI_API_KEY"):
             self.llm_client = OpenAI()
-        self.graph = self._build_graph()
+        self.graph: Any = self._build_graph()
 
-    def _build_graph(self) -> StateGraph:
-        workflow = StateGraph(AssistantState)
+    def _build_graph(self) -> Any:
+        workflow: Any = StateGraph(AssistantState)
 
         workflow.add_node("retrieve_context", self.retrieve_context)
         workflow.add_node("classify_intent", self.classify_intent)
@@ -227,7 +229,9 @@ class MemoryAwareSupportAssistant:
                 )
                 return {"response": response}
             except Exception:
-                logger.exception("LLM response generation failed; using fallback template")
+                logger.exception(
+                    "LLM response generation failed; using fallback template"
+                )
 
         if intent == "research":
             core = (

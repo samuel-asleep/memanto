@@ -7,7 +7,6 @@ import uuid
 
 import chainlit as cl
 from dotenv import load_dotenv
-
 from memory_graph import MemantoSessionManager, MemoryAwareSupportAssistant
 
 load_dotenv()
