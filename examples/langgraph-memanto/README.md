@@ -68,7 +68,7 @@ Expected output is JSON with:
 ## Run the Interactive UI (for video recording)
 
 ```bash
-cd /home/runner/work/memanto/memanto/examples/langgraph-memanto
+cd examples/langgraph-memanto
 chainlit run chainlit_app.py
 ```
 
