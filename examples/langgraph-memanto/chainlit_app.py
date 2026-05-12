@@ -15,9 +15,13 @@ load_dotenv()
 @cl.on_chat_start
 async def on_chat_start() -> None:
     api_key = os.getenv("MOORCHEH_API_KEY")
-    if not api_key:
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if not api_key or not openai_key:
         await cl.Message(
-            content="Missing MOORCHEH_API_KEY. Add it to `.env` before starting."
+            content=(
+                "Missing required keys. Add both `MOORCHEH_API_KEY` and "
+                "`OPENAI_API_KEY` to `.env` before starting."
+            )
         ).send()
         return
 
