@@ -58,7 +58,7 @@ Expected output is JSON with:
 - `session_b.retrieved_count > 0`
 - `session_b.response` reflecting recalled preferences (concise/bullet style)
 ## Demo video 
-https://github.com/user-attachments/assets/191003a4-8b7a-4df7-9d83-f00e7f8ee6da
+https://github.com/user-attachments/assets/51e7de4d-a8da-4b8e-8e78-de8b5850d53d
 
 ## Files
 
