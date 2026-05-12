@@ -57,6 +57,8 @@ Expected output is JSON with:
 - `session_a.stored_memory: true`
 - `session_b.retrieved_count > 0`
 - `session_b.response` reflecting recalled preferences (concise/bullet style)
+## Demo video 
+https://github.com/user-attachments/assets/191003a4-8b7a-4df7-9d83-f00e7f8ee6da
 
 ## Files
 
