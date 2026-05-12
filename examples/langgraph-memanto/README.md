@@ -8,8 +8,9 @@ It demonstrates:
 - **Decision node** (`classify_intent`) that routes to support vs research branches
 - **Store node** (`store_memory`) that commits important new information to Memanto
 - **Cross-session continuity**: a fresh session remembers details saved in a previous execution
-- **Real LLM responses** in `compose_response` (OpenAI)
+- **Real LLM responses** in `compose_response` (OpenAI or Gemini key)
 - **Interactive UI** via Chainlit for recording live demos
+- **Persistent memory toggle** to turn Memanto recall/store on or off
 
 ## Architecture
 
@@ -26,8 +27,10 @@ START
 ## Prerequisites
 
 - Python 3.10+
-- Moorcheh API key (`MOORCHEH_API_KEY`)
-- OpenAI API key (`OPENAI_API_KEY`)
+- One LLM API key:
+  - OpenAI (`OPENAI_API_KEY`) or
+  - Gemini (`GEMINI_API_KEY`)
+- Optional Moorcheh API key (`MOORCHEH_API_KEY`) if persistent memory is enabled
 
 ## Setup
 
@@ -39,7 +42,8 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 cp .env.example .env
-# Add your MOORCHEH_API_KEY and OPENAI_API_KEY in .env
+# Add your LLM key(s) in .env.
+# Set MEMANTO_PERSISTENT_MEMORY_ENABLED=false if you want to run without Memanto.
 ```
 
 ## Run the Continuity Demo
@@ -68,12 +72,19 @@ cd /home/runner/work/memanto/memanto/examples/langgraph-memanto
 chainlit run chainlit_app.py
 ```
 
+Important env toggles:
+
+- `LLM_PROVIDER=auto|openai|gemini` (default `auto`)
+- `MEMANTO_PERSISTENT_MEMORY_ENABLED=true|false`
+
 Then record this flow:
 
 1. **Chat Session 1**: send `My name is Sam, I prefer bullet points.`
 2. End the chat and start a **new chat session** in Chainlit.
 3. **Chat Session 2**: ask a normal support question.
 4. The assistant should recall memory and adapt to remembered style/preferences.
+
+If memory toggle is set to `false`, the app still chats with the LLM but skips Memanto recall/store.
 
 ## Files
 

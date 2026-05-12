@@ -22,6 +22,14 @@ ALLOWED_USER_ID_CHARS = "-_"
 DEFAULT_SESSION_DURATION_HOURS = 6
 DEFAULT_RECALL_LIMIT = 6
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
+DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+def _is_truthy(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 class AssistantState(TypedDict, total=False):
@@ -97,19 +105,51 @@ class MemoryAwareSupportAssistant:
 
     def __init__(
         self,
-        client: SdkClient,
+        client: SdkClient | None,
         agent_id: str,
         llm_client: OpenAI | None = None,
         llm_model: str | None = None,
+        enable_persistent_memory: bool | None = None,
     ) -> None:
         self.client = client
         self.agent_id = agent_id
-        self.llm_model = cast(
-            str, llm_model or os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+        self.enable_persistent_memory = (
+            _is_truthy(
+                os.getenv("MEMANTO_PERSISTENT_MEMORY_ENABLED", "true"), default=True
+            )
+            if enable_persistent_memory is None
+            else enable_persistent_memory
         )
         self.llm_client = llm_client
-        if self.llm_client is None and os.getenv("OPENAI_API_KEY"):
-            self.llm_client = OpenAI()
+        provider = os.getenv("LLM_PROVIDER", "auto").strip().lower()
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+
+        if self.llm_client is None:
+            if provider == "openai" and openai_api_key:
+                self.llm_client = OpenAI(api_key=openai_api_key)
+            elif provider == "gemini" and gemini_api_key:
+                self.llm_client = OpenAI(
+                    api_key=gemini_api_key,
+                    base_url=os.getenv("GEMINI_BASE_URL", DEFAULT_GEMINI_BASE_URL),
+                )
+            elif provider == "auto":
+                if openai_api_key:
+                    self.llm_client = OpenAI(api_key=openai_api_key)
+                    provider = "openai"
+                elif gemini_api_key:
+                    self.llm_client = OpenAI(
+                        api_key=gemini_api_key,
+                        base_url=os.getenv("GEMINI_BASE_URL", DEFAULT_GEMINI_BASE_URL),
+                    )
+                    provider = "gemini"
+
+        default_model = (
+            os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+            if provider != "gemini"
+            else os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+        )
+        self.llm_model = cast(str, llm_model or default_model)
         self.graph: Any = self._build_graph()
 
     def _build_graph(self) -> Any:
@@ -152,6 +192,13 @@ class MemoryAwareSupportAssistant:
 
     def retrieve_context(self, state: AssistantState) -> AssistantState:
         """Retrieve long-term memories at the start of each thread."""
+        if not self.enable_persistent_memory or self.client is None:
+            return {
+                "recall_query": "",
+                "recalled_memories": [],
+                "response_style": "clear",
+            }
+
         query = self._build_recall_query(
             user_id=state["user_id"],
             user_message=state["user_message"],
@@ -191,7 +238,7 @@ class MemoryAwareSupportAssistant:
             state["user_id"],
             state["user_message"],
         )
-        should_store = memory_candidate is not None
+        should_store = self.enable_persistent_memory and memory_candidate is not None
 
         return {
             "intent": intent,
@@ -252,6 +299,9 @@ class MemoryAwareSupportAssistant:
 
     def store_memory(self, state: AssistantState) -> AssistantState:
         """Persist newly discovered user-specific details into Memanto."""
+        if not self.enable_persistent_memory or self.client is None:
+            return {}
+
         memory_payload = state.get("memory_to_store")
         if not memory_payload:
             return {}
@@ -321,7 +371,7 @@ class MemoryAwareSupportAssistant:
                 {"role": "user", "content": user_message},
             ],
         )
-        output_text = completion.choices[0].message.content
+        output_text = cast(str | None, completion.choices[0].message.content)
         if output_text:
             return output_text.strip()
         raise RuntimeError("LLM response was empty")
