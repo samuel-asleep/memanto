@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
+from openai import OpenAI
 from typing_extensions import TypedDict
 
 from memanto.cli.client.sdk_client import SdkClient
@@ -19,6 +21,7 @@ MAX_MEMORY_TITLE_LENGTH = 100
 ALLOWED_USER_ID_CHARS = "-_"
 DEFAULT_SESSION_DURATION_HOURS = 6
 DEFAULT_RECALL_LIMIT = 6
+DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 
 
 class AssistantState(TypedDict, total=False):
@@ -92,9 +95,19 @@ class MemantoSessionManager:
 class MemoryAwareSupportAssistant:
     """LangGraph assistant with Memanto-backed long-term memory."""
 
-    def __init__(self, client: SdkClient, agent_id: str) -> None:
+    def __init__(
+        self,
+        client: SdkClient,
+        agent_id: str,
+        llm_client: OpenAI | None = None,
+        llm_model: str | None = None,
+    ) -> None:
         self.client = client
         self.agent_id = agent_id
+        self.llm_model = llm_model or os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL)
+        self.llm_client = llm_client
+        if self.llm_client is None and os.getenv("OPENAI_API_KEY"):
+            self.llm_client = OpenAI()
         self.graph = self._build_graph()
 
     def _build_graph(self) -> StateGraph:
@@ -204,6 +217,18 @@ class MemoryAwareSupportAssistant:
         else:
             memory_context = ""
 
+        if self.llm_client:
+            try:
+                response = self._generate_response_with_llm(
+                    user_message=state["user_message"],
+                    memory_context=memory_context,
+                    style=style,
+                    intent=intent,
+                )
+                return {"response": response}
+            except Exception:
+                logger.exception("LLM response generation failed; using fallback template")
+
         if intent == "research":
             core = (
                 "I'll provide a structured research summary with assumptions, "
@@ -259,6 +284,43 @@ class MemoryAwareSupportAssistant:
         }
 
         return cast(AssistantState, self.graph.invoke(initial_state))
+
+    def _generate_response_with_llm(
+        self, user_message: str, memory_context: str, style: str, intent: str
+    ) -> str:
+        if not self.llm_client:
+            raise RuntimeError("LLM client not configured")
+
+        style_instruction = {
+            "bullet": "Use concise bullet points.",
+            "concise": "Use concise short paragraphs.",
+            "clear": "Use clear and actionable language.",
+        }.get(style, "Use clear and actionable language.")
+
+        intent_instruction = (
+            "Provide a structured research response with assumptions, risks, and next actions."
+            if intent == "research"
+            else "Provide direct support guidance with concrete next steps."
+        )
+
+        system_prompt = (
+            "You are a helpful support assistant. "
+            f"{style_instruction} "
+            f"{intent_instruction} "
+            f"{memory_context}"
+            "Use remembered preferences naturally when relevant."
+        )
+        completion = self.llm_client.responses.create(
+            model=self.llm_model,
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        output_text = completion.output_text.strip()
+        if output_text:
+            return output_text
+        raise RuntimeError("LLM response was empty")
 
     @staticmethod
     def _build_recall_query(user_id: str, user_message: str) -> str:

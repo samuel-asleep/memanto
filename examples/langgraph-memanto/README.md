@@ -8,6 +8,8 @@ It demonstrates:
 - **Decision node** (`classify_intent`) that routes to support vs research branches
 - **Store node** (`store_memory`) that commits important new information to Memanto
 - **Cross-session continuity**: a fresh session remembers details saved in a previous execution
+- **Real LLM responses** in `compose_response` (OpenAI)
+- **Interactive UI** via Chainlit for recording live demos
 
 ## Architecture
 
@@ -25,6 +27,7 @@ START
 
 - Python 3.10+
 - Moorcheh API key (`MOORCHEH_API_KEY`)
+- OpenAI API key (`OPENAI_API_KEY`)
 
 ## Setup
 
@@ -36,7 +39,7 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 cp .env.example .env
-# Add your MOORCHEH_API_KEY in .env
+# Add your MOORCHEH_API_KEY and OPENAI_API_KEY in .env
 ```
 
 ## Run the Continuity Demo
@@ -58,6 +61,20 @@ Expected output is JSON with:
 - `session_b.retrieved_count > 0`
 - `session_b.response` reflecting recalled preferences (concise/bullet style)
 
+## Run the Interactive UI (for video recording)
+
+```bash
+cd /home/runner/work/memanto/memanto/examples/langgraph-memanto
+chainlit run chainlit_app.py
+```
+
+Then record this flow:
+
+1. **Chat Session 1**: send `My name is Sam, I prefer bullet points.`
+2. End the chat and start a **new chat session** in Chainlit.
+3. **Chat Session 2**: ask a normal support question.
+4. The assistant should recall memory and adapt to remembered style/preferences.
+
 ## Files
 
 ```text
@@ -66,5 +83,6 @@ examples/langgraph-memanto/
 ├── requirements.txt
 ├── .env.example
 ├── memory_graph.py
-└── run_demo.py
+├── run_demo.py
+└── chainlit_app.py
 ```
