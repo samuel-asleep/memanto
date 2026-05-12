@@ -314,16 +314,16 @@ class MemoryAwareSupportAssistant:
             f"{memory_context}"
             "Use remembered preferences naturally when relevant."
         )
-        completion = self.llm_client.responses.create(
+        completion = self.llm_client.chat.completions.create(
             model=self.llm_model,
-            input=[
+            messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
         )
-        output_text = completion.output_text.strip()
+        output_text = completion.choices[0].message.content
         if output_text:
-            return output_text
+            return output_text.strip()
         raise RuntimeError("LLM response was empty")
 
     @staticmethod
