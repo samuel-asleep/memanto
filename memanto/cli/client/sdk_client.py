@@ -402,8 +402,10 @@ class SdkClient:
 
         Args:
             agent_id: Target agent.
-            memory_type: One of ``fact``, ``decision``, ``instruction``,
-                ``commitment``, ``event``.
+            memory_type: One of ``fact``, ``preference``, ``goal``,
+                ``decision``, ``artifact``, ``learning``, ``event``,
+                ``instruction``, ``relationship``, ``context``,
+                ``observation``, ``commitment``, ``error``.
             title: Memory title (max 100 chars).
             content: Memory content (max ``InputLimits.MAX_TEXT_LENGTH`` chars).
             confidence: Confidence score 0.0–1.0 (default 0.8).
