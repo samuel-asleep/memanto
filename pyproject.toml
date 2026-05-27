@@ -74,6 +74,9 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.version.raw-options]
+git_describe_command = "git describe --dirty --tags --long --match v*"
+
 [tool.hatch.build.hooks.vcs]
 version-file = "memanto/app/_version.py"
 
@@ -99,6 +102,9 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
+exclude = [
+    "^integrations/",
+]
 
 # Optional: Configure pytest
 [tool.pytest.ini_options]

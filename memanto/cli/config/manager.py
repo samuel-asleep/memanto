@@ -151,7 +151,8 @@ class ConfigManager:
             "model": "anthropic.claude-sonnet-4-6",
             "temperature": 0.7,
             "answer_limit": 15,
-            "threshold": 0.01,
+            "threshold": 0.15,
+            "kiosk_mode": False,
         }
         defaults.update(answer)
         return defaults
@@ -162,6 +163,7 @@ class ConfigManager:
         temperature: float | None = None,
         answer_limit: int | None = None,
         threshold: float | None = None,
+        kiosk_mode: bool | None = None,
     ) -> None:
         """Set Answer config values."""
         data = self.load_yaml()
@@ -174,6 +176,8 @@ class ConfigManager:
             answer["answer_limit"] = answer_limit
         if threshold is not None:
             answer["threshold"] = threshold
+        if kiosk_mode is not None:
+            answer["kiosk_mode"] = bool(kiosk_mode)
 
         self.save_yaml(data)
 
@@ -182,16 +186,25 @@ class ConfigManager:
         data = self.load_yaml()
         recall = data.get("recall", {})
 
-        defaults = {"limit": 10}
+        defaults = {"limit": 10, "min_similarity": 0.0}
         defaults.update(recall)
         return defaults
 
-    def set_recall_config(self, limit: int | None = None) -> None:
+    def set_recall_config(
+        self, limit: int | None = None, min_similarity: float | None = None
+    ) -> None:
         """Set Recall config values."""
         data = self.load_yaml()
         recall = data.setdefault("recall", {})
         if limit is not None:
             recall["limit"] = limit
+        if min_similarity is not None:
+            if (
+                not isinstance(min_similarity, (int, float))
+                or not 0.0 <= float(min_similarity) <= 1.0
+            ):
+                raise ValueError("min_similarity must be between 0.0 and 1.0")
+            recall["min_similarity"] = min_similarity
         self.save_yaml(data)
 
     # Schedule timing

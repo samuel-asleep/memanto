@@ -29,8 +29,8 @@ from memanto.cli.commands._shared import (
 @app.command()
 def remember(
     content: str | None = typer.Argument(None, help="Memory content to store"),
-    memory_type: str = typer.Option(
-        "fact",
+    memory_type: str | None = typer.Option(
+        None,
         "--type",
         "-t",
         help="Memory type (fact, preference, goal, decision, artifact, learning, event, instruction, relationship, context, observation, commitment, error)",
@@ -163,7 +163,8 @@ def remember(
 
         console.print("[green]Memory stored successfully![/green]")
         console.print(f"[dim]Memory ID: {result.get('memory_id', 'unknown')}[/dim]")
-        console.print(f"[dim]Type: {memory_type} | Confidence: {confidence}[/dim]")
+        parsed_type = result.get("type") or memory_type or "fact"
+        console.print(f"[dim]Type: {parsed_type} | Confidence: {confidence}[/dim]")
         console.print(f"[dim]Completed in {elapsed:.2f}s[/dim]")
 
     except Exception as e:
@@ -238,7 +239,8 @@ def upload(
 @app.command()
 def recall(
     query: str | None = typer.Argument(
-        None, help="Search query (optional for --changed-since)"
+        None,
+        help="Search query (omit when using --as-of, --changed-since, or --recent)",
     ),
     limit: int | None = typer.Option(
         None, "--limit", "-n", help="Maximum number of results"
@@ -246,8 +248,8 @@ def recall(
     memory_type: str | None = typer.Option(
         None, "--type", "-t", help="Filter by memory type"
     ),
-    min_confidence: float | None = typer.Option(
-        None, "--min-confidence", help="Minimum confidence score"
+    min_similarity: float | None = typer.Option(
+        None, "--min-similarity", help="Minimum similarity score"
     ),
     tags: str | None = typer.Option(
         None, "--tags", help="Filter by tags (comma-separated)"
@@ -262,6 +264,11 @@ def recall(
         "--changed-since",
         help="Differential query: What changed since this date? (ISO format)",
     ),
+    recent: bool = typer.Option(
+        False,
+        "--recent",
+        help="Chronological query: return the most recently stored memories (newest first). No search query needed.",
+    ),
 ):
     """Search and retrieve memories for the active agent with temporal query support."""
     start = time.perf_counter()
@@ -273,19 +280,19 @@ def recall(
         )
 
     # Check for mutually exclusive temporal flags
-    temporal_flags = [as_of, changed_since]
+    temporal_flags = [as_of, changed_since, recent]
     temporal_count = sum(1 for flag in temporal_flags if flag)
     if temporal_count > 1:
         _error(
             "Cannot use multiple temporal query modes together.",
-            hint="Use only one of: --as-of, --changed-since",
+            hint="Use only one of: --as-of, --changed-since, --recent",
         )
 
     # Temporal queries list memories directly and don't take a query argument.
-    if query and (as_of or changed_since):
+    if query and (as_of or changed_since or recent):
         _error(
             "Cannot provide a search query with temporal flags.",
-            hint="Temporal queries (--as-of, --changed-since) list all memories for that time. Remove the search query to continue.",
+            hint="Temporal queries (--as-of, --changed-since, --recent) list memories directly. Remove the search query to continue.",
         )
 
     client = get_client()
@@ -293,6 +300,8 @@ def recall(
 
     # CLI-side validation for timestamps to fail fast with a clear error
     def _validate_and_parse_timestamp(ts: str, flag_name: str) -> str:
+        """Normalize an ISO or relative timestamp passed to a temporal flag."""
+
         if not ts:
             return ts
 
@@ -339,6 +348,13 @@ def recall(
                     type=type,
                 )
                 temporal_mode = "changed_since"
+            elif recent:
+                results = client.recall_recent(
+                    agent_id=agent_id,
+                    limit=limit,
+                    type=type,
+                )
+                temporal_mode = "recent"
             elif query:
                 # Standard recall
                 results = client.recall(
@@ -347,7 +363,7 @@ def recall(
                     limit=limit,
                     type=type,
                     tags=tag_list,
-                    min_confidence=min_confidence,
+                    min_similarity=min_similarity,
                 )
             else:
                 _error(
@@ -367,6 +383,7 @@ def recall(
         mode_labels = {
             "as_of": f"Point-in-time (as of {as_of})",
             "changed_since": f"Differential (since {changed_since})",
+            "recent": "Recent (newest first)",
             "standard": "Standard search",
         }
         mode_label = mode_labels.get(temporal_mode, "Standard search")
@@ -746,6 +763,8 @@ def conflicts(
 
         # Prompt options with recommendation markers
         def _opt(key, label, rec_val, current_rec=rec):
+            """Print a conflict-resolution choice with its recommendation marker."""
+
             marker = " [green]<< recommended[/green]" if current_rec == rec_val else ""
             console.print(f"  [{BRIGHT}][{key}][/{BRIGHT}] {label}{marker}")
 

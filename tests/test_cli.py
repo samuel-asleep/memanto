@@ -217,6 +217,36 @@ class TestMEMANTOCLI:
         assert "Found 2 memories" in result.stdout
         assert "Found memory 1" in result.stdout
 
+    def test_recall_recent(self, mock_all_clients):
+        """`memanto recall --recent` lists newest memories chronologically."""
+        mock_all_clients.recall_recent.return_value = {
+            "memories": [
+                {"content": "Newest memory", "score": 0.0, "type": "fact"},
+                {"content": "Older memory", "score": 0.0, "type": "preference"},
+            ],
+            "count": 2,
+        }
+
+        result = runner.invoke(app, ["recall", "--recent", "--limit", "5"])
+        assert result.exit_code == 0
+        assert "Recent (newest first)" in result.stdout
+        assert "Newest memory" in result.stdout
+        mock_all_clients.recall_recent.assert_called_once()
+        call_kwargs = mock_all_clients.recall_recent.call_args.kwargs
+        assert call_kwargs["limit"] == 5
+
+    def test_recall_recent_rejects_query(self, mock_all_clients):
+        """`--recent` is chronological; passing a query alongside is an error."""
+        result = runner.invoke(app, ["recall", "some query", "--recent"])
+        assert result.exit_code != 0
+        assert "Cannot provide a search query" in result.stdout
+
+    def test_recall_rejects_multiple_temporal_flags(self, mock_all_clients):
+        """`--recent` and `--as-of` are mutually exclusive."""
+        result = runner.invoke(app, ["recall", "--recent", "--as-of", "2025-11-01"])
+        assert result.exit_code != 0
+        assert "multiple temporal query modes" in result.stdout
+
     def test_answer(self, mock_all_clients):
         """Test 'memanto answer'"""
         mock_all_clients.answer.return_value = {

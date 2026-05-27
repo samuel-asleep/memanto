@@ -116,7 +116,7 @@ curl -X POST "http://localhost:8000/api/v2/agents/my-agent/answer" \
   }'
 ```
 
-`threshold` is only used when `kiosk_mode` is `true`. If omitted in kiosk mode, MEMANTO uses `0.10`.
+`threshold` is only used when `kiosk_mode` is `true`. If omitted in kiosk mode, MEMANTO uses `0.15`.
 
 ---
 

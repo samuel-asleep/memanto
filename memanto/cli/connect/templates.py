@@ -57,6 +57,7 @@ Always categorize the source of the memory. Valid options:
 - `observed` — Seen in action
 - `corrected` — Updated after contradiction
 - `validated` — Confirmed/verified
+- `imported` — Brought in from an external source (file upload, sync, migration)
 
 ## Source Types
 
