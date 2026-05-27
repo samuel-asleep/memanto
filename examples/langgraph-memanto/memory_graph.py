@@ -141,10 +141,12 @@ class MemoryAwareSupportAssistant:
             user_id=state["user_id"],
             user_message=state["user_message"],
         )
+        user_tag = self._user_tag(state["user_id"])
         result = self.client.recall(
             agent_id=self.agent_id,
             query=query,
             limit=DEFAULT_RECALL_LIMIT,
+            tags=[user_tag],
         )
 
         memories = result.get("memories", [])
@@ -227,13 +229,19 @@ class MemoryAwareSupportAssistant:
         if not memory_payload:
             return {}
 
+        # Merge the per-user tag so recall can filter by user later.
+        user_tag = self._user_tag(state["user_id"])
+        tags = list(memory_payload["tags"])
+        if user_tag not in tags:
+            tags.append(user_tag)
+
         self.client.remember(
             agent_id=self.agent_id,
             memory_type=memory_payload["memory_type"],
             title=memory_payload["title"],
             content=memory_payload["content"],
             confidence=memory_payload["confidence"],
-            tags=memory_payload["tags"],
+            tags=tags,
             source="langgraph-assistant",
             provenance="explicit_statement",
         )
@@ -259,6 +267,18 @@ class MemoryAwareSupportAssistant:
         }
 
         return cast(AssistantState, self.graph.invoke(initial_state))
+
+    @staticmethod
+    def _sanitize_user_id(user_id: str) -> str:
+        """Return a safe, non-empty string suitable for use in a tag."""
+        safe = "".join(
+            ch for ch in user_id if ch.isalnum() or ch in ALLOWED_USER_ID_CHARS
+        )[:MAX_USER_ID_LENGTH]
+        return safe or "user"
+
+    def _user_tag(self, user_id: str) -> str:
+        """Return the canonical per-user tag for this user_id."""
+        return f"user:{self._sanitize_user_id(user_id)}"
 
     @staticmethod
     def _build_recall_query(user_id: str, user_message: str) -> str:
