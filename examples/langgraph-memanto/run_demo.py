@@ -35,16 +35,19 @@ def main() -> int:
     if not api_key or not api_key.strip():
         print("ERROR: Set MOORCHEH_API_KEY in your environment or .env file.", file=sys.stderr)
         return 1
+    api_key = api_key.strip()
 
     args = parse_args()
 
     # Session A: store a memory from explicit user preference
     manager_a = MemantoSessionManager(api_key=api_key, agent_id=args.agent_id)
-    client_a = manager_a.setup()
-    assistant_a = MemoryAwareSupportAssistant(client=client_a, agent_id=args.agent_id)
+    client_a = None
+    assistant_a = None
 
     thread_a = f"thread-{uuid.uuid4().hex[:8]}"
     try:
+        client_a = manager_a.setup()
+        assistant_a = MemoryAwareSupportAssistant(client=client_a, agent_id=args.agent_id)
         turn_a = assistant_a.run(
             user_id=args.user_id,
             thread_id=thread_a,
@@ -57,11 +60,13 @@ def main() -> int:
 
     # Session B: fresh session and thread, retrieve memory from session A
     manager_b = MemantoSessionManager(api_key=api_key, agent_id=args.agent_id)
-    client_b = manager_b.setup()
-    assistant_b = MemoryAwareSupportAssistant(client=client_b, agent_id=args.agent_id)
+    client_b = None
+    assistant_b = None
 
     thread_b = f"thread-{uuid.uuid4().hex[:8]}"
     try:
+        client_b = manager_b.setup()
+        assistant_b = MemoryAwareSupportAssistant(client=client_b, agent_id=args.agent_id)
         turn_b = assistant_b.run(
             user_id=args.user_id,
             thread_id=thread_b,
