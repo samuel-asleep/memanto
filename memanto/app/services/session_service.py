@@ -7,7 +7,7 @@ Uses JWT tokens for stateless authentication.
 
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +28,7 @@ from memanto.app.utils.errors import (
     SessionNotFoundError,
 )
 from memanto.app.utils.ids import generate_id
+from memanto.app.utils.temporal_helpers import utc_now
 
 _session_service = None
 
@@ -102,7 +103,7 @@ class SessionService:
 
         session_id = self._generate_session_id()
         namespace = self._generate_namespace(agent_id)
-        started_at = datetime.utcnow()
+        started_at = utc_now()
         expires_at = started_at + timedelta(hours=duration_hours)
 
         # Create JWT payload
@@ -160,7 +161,7 @@ class SessionService:
             token = SessionToken(**payload)
 
             # Validate expiration
-            if datetime.utcnow() > token.expires_at:
+            if utc_now() > token.expires_at:
                 raise SessionExpiredError(
                     f"Session {token.session_id} expired at {token.expires_at}"
                 )
@@ -228,7 +229,7 @@ class SessionService:
         if not session:
             raise SessionNotFoundError(f"No session found for agent {agent_id}")
 
-        ended_at = datetime.utcnow()
+        ended_at = utc_now()
         duration = (ended_at - session.started_at).total_seconds() / 3600
 
         # Update session status
@@ -336,7 +337,7 @@ class SessionService:
             memory_id: The Moorcheh memory ID (if available)
         """
         # Get the timestamp of memory to determine the date string
-        dt_now = getattr(memory_record, "created_at", datetime.utcnow())
+        dt_now = getattr(memory_record, "created_at", utc_now())
         timestamp = dt_now.strftime("%Y-%m-%d %H:%M:%S")
         date_str = dt_now.strftime("%Y-%m-%d")
 

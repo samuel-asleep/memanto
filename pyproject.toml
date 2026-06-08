@@ -55,11 +55,7 @@ Repository = "https://github.com/moorcheh-ai/memanto"
 "Bug Tracker" = "https://github.com/moorcheh-ai/memanto/issues"
 
 [project.optional-dependencies]
-analyze = [
-    "supermemory>=0.1.0",
-]
 all = [
-    "supermemory>=0.1.0",
     "pytest>=8.2.0,<9",
     "pytest-mock>=3.12.0,<4",
     "mypy>=1.10.0,<2",

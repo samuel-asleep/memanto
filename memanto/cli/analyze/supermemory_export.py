@@ -113,7 +113,9 @@ def paginate_documents(
 
         pagination = data.get("pagination") or {}
         pagination_meta = pagination
-        total_pages = int(pagination.get("total_pages") or pagination.get("totalPages") or 1)
+        total_pages = int(
+            pagination.get("total_pages") or pagination.get("totalPages") or 1
+        )
         if page >= total_pages:
             break
         page += 1
@@ -211,7 +213,9 @@ def paginate_memories_for_tag(api_key: str, tag: str) -> list[dict[str, Any]]:
         all_entries.extend(batch)
 
         pagination = data.get("pagination") or {}
-        total_pages = int(pagination.get("totalPages") or pagination.get("total_pages") or 1)
+        total_pages = int(
+            pagination.get("totalPages") or pagination.get("total_pages") or 1
+        )
         if page >= total_pages:
             break
         page += 1
@@ -235,9 +239,7 @@ def finalize_document(
         detail = dict(detail)
         embedded = detail.pop("memories", None) or []
         if embedded:
-            out["memory_ids"] = [
-                m["id"] for m in dedupe_by_id(embedded) if m.get("id")
-            ]
+            out["memory_ids"] = [m["id"] for m in dedupe_by_id(embedded) if m.get("id")]
         if has_chunks and not include_content:
             detail.pop("content", None)
         for key in REDUNDANT_DOC_KEYS:
@@ -301,7 +303,7 @@ def run_supermemory_export(
         from supermemory import Supermemory
     except ImportError as exc:
         raise ImportError(
-            "Supermemory SDK is required. Install with: pip install 'memanto[analyze]'"
+            "Supermemory SDK is required. Install with: pip install supermemory"
         ) from exc
 
     client = Supermemory(api_key=api_key)
@@ -333,7 +335,9 @@ def run_supermemory_export(
     if container_tags:
         if on_progress:
             on_progress("Fetching memory entries...")
-        all_memories, memories_by_tag = collect_memories_deduped(api_key, container_tags)
+        all_memories, memories_by_tag = collect_memories_deduped(
+            api_key, container_tags
+        )
 
     memory_count = len(all_memories)
     export = {

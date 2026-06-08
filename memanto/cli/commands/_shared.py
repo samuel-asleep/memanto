@@ -18,6 +18,7 @@ from memanto.app.utils.temporal_helpers import (  # noqa: F401
     format_current_local_time,
     format_local_time,
     parse_relative_time,
+    utc_now,
 )
 from memanto.cli.client.sdk_client import SdkClient
 from memanto.cli.config.manager import ConfigManager
@@ -122,7 +123,7 @@ def get_client() -> SdkClient:
                 if expires_at_str:
                     expires_at = datetime.fromisoformat(expires_at_str)
 
-                    if datetime.utcnow() > expires_at:
+                    if utc_now() > expires_at:
                         # Silently revive the session — activate_agent updates
                         # SessionService state and the client's own token.
                         client.activate_agent(active_agent_id)
