@@ -18,6 +18,7 @@ from memanto.app.utils.temporal_helpers import (  # noqa: F401
     format_current_local_time,
     format_local_time,
     parse_relative_time,
+    utc_now,
 )
 from memanto.cli.client.sdk_client import SdkClient
 from memanto.cli.config.manager import ConfigManager
@@ -64,6 +65,7 @@ config_app = typer.Typer(help="Configuration commands")
 schedule_app = typer.Typer(help="Daily summary scheduling commands")
 memory_app = typer.Typer(help="Memory management commands")
 connect_app = typer.Typer(help="Connect MEMANTO to external tools")
+analyze_app = typer.Typer(help="Analyze and export external memory providers")
 
 app.add_typer(agent_app, name="agent")
 app.add_typer(session_app, name="session")
@@ -71,6 +73,7 @@ app.add_typer(config_app, name="config")
 app.add_typer(schedule_app, name="schedule")
 app.add_typer(memory_app, name="memory")
 app.add_typer(connect_app, name="connect")
+app.add_typer(analyze_app, name="analyze")
 
 
 def _error(message: str, hint: str | None = None) -> NoReturn:
@@ -130,7 +133,7 @@ def get_client() -> SdkClient:
                 if expires_at_str:
                     expires_at = datetime.fromisoformat(expires_at_str)
 
-                    if datetime.utcnow() > expires_at:
+                    if utc_now() > expires_at:
                         # Silently revive the session — activate_agent updates
                         # SessionService state and the client's own token.
                         client.activate_agent(active_agent_id)

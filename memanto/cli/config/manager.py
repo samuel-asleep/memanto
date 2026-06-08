@@ -19,6 +19,16 @@ from memanto.app.clients.backend import Backend, parse_backend
 yaml = importlib.import_module("yaml")
 
 
+def _normalize_duplicated_api_key(key: str) -> str:
+    """Fix pasted keys accidentally doubled (same half repeated twice)."""
+    key = key.strip()
+    if len(key) % 2 == 0:
+        half = len(key) // 2
+        if key[:half] == key[half:]:
+            return key[:half]
+    return key
+
+
 class ConfigManager:
     """Manages MEMANTO CLI configuration.
 
@@ -52,17 +62,56 @@ class ConfigManager:
 
     def set_api_key(self, api_key: str) -> None:
         """Save Moorcheh API key to ~/.memanto/.env."""
-        # Ensure the file exists
+        self._set_env_var("MOORCHEH_API_KEY", api_key)
+
+    def get_supermemory_api_key(self) -> str | None:
+        """Get Supermemory API key from ~/.memanto/.env."""
+        if self.env_file.exists():
+            load_dotenv(self.env_file, override=True)
+        key = (
+            os.environ.get("SUPERMEMORY_API_KEY")
+            or os.environ.get("supermemory_api_key")
+            or ""
+        ).strip()
+        if not key:
+            return None
+        return _normalize_duplicated_api_key(key)
+
+    def set_supermemory_api_key(self, api_key: str) -> None:
+        """Save Supermemory API key to ~/.memanto/.env."""
+        self._set_env_var("SUPERMEMORY_API_KEY", _normalize_duplicated_api_key(api_key))
+
+    def get_mem0_api_key(self) -> str | None:
+        """Get Mem0 API key from ~/.memanto/.env."""
+        if self.env_file.exists():
+            load_dotenv(self.env_file, override=True)
+        key = (
+            os.environ.get("MEM0_API_KEY") or os.environ.get("mem0_api_key") or ""
+        ).strip()
+        if not key:
+            return None
+        return _normalize_duplicated_api_key(key)
+
+    def set_mem0_api_key(self, api_key: str) -> None:
+        """Save Mem0 API key to ~/.memanto/.env."""
+        self._set_env_var("MEM0_API_KEY", _normalize_duplicated_api_key(api_key))
+
+    def _set_env_var(self, name: str, value: str) -> None:
+        """Write a single variable to ~/.memanto/.env and update os.environ."""
         if not self.env_file.exists():
             self.env_file.write_text("# MEMANTO Environment\n")
-        set_key(str(self.env_file), "MOORCHEH_API_KEY", api_key)
-        os.environ["MOORCHEH_API_KEY"] = api_key
-
-        # Secure permissions (owner-only)
+        set_key(str(self.env_file), name, value)
+        os.environ[name] = value
         try:
             self.env_file.chmod(0o600)
         except OSError:
             pass  # Windows may not support chmod
+
+    def get_analyze_dir(self, provider: str) -> Path:
+        """Base directory for a provider's analyze artifacts (e.g. 'supermemory')."""
+        path = self.config_dir / "analyze" / provider
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     def is_configured(self) -> bool:
         """Check if the active backend is configured.
