@@ -14,6 +14,7 @@ from pathlib import Path
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, field_validator
 
+from memanto.app.clients.backend import get_active_llm_model
 from memanto.app.clients.moorcheh import get_moorcheh_client
 from memanto.app.config import settings
 from memanto.app.core import MemoryRecord
@@ -326,23 +327,6 @@ async def upload_file(
             )
         )
 
-    # upload_file relies on Moorcheh's server-side file chunking, which the
-    # on-prem image does not expose; refuse early instead of bubbling up the
-    # adapter's OnPremFeatureUnavailable as an opaque 500. The client is
-    # acquired after this guard so a half-configured on-prem env (backend set
-    # but moorcheh-client not installed) still returns 501, not 500.
-    from memanto.app.clients.backend import Backend, parse_backend
-
-    if parse_backend(settings.MEMANTO_BACKEND) == Backend.ON_PREM:
-        raise HTTPException(
-            status_code=501,
-            detail=(
-                "upload-file is not available on the on-prem backend "
-                "(no server-side file chunking). "
-                "Switch with: memanto config backend cloud"
-            ),
-        )
-
     client = get_moorcheh_client()
 
     # Validate file extension before reading
@@ -490,20 +474,6 @@ async def answer(
             )
         )
 
-    # answer.generate is a cloud-only feature; refuse early on on-prem. The
-    # client is acquired after this guard so a half-configured on-prem env
-    # (backend set but moorcheh-client not installed) still returns 501, not 500.
-    from memanto.app.clients.backend import Backend, parse_backend
-
-    if parse_backend(settings.MEMANTO_BACKEND) == Backend.ON_PREM:
-        raise HTTPException(
-            status_code=501,
-            detail=(
-                "answer is not available on the on-prem backend. "
-                "Switch with: memanto config backend cloud"
-            ),
-        )
-
     client = get_moorcheh_client()
 
     # Resolve defaults from settings
@@ -515,7 +485,9 @@ async def answer(
         else settings.ANSWER_TEMPERATURE
     )
     ai_model = (
-        request.ai_model if request.ai_model is not None else settings.ANSWER_MODEL
+        request.ai_model
+        if request.ai_model is not None
+        else get_active_llm_model(settings.ANSWER_MODEL)
     )
 
     try:
@@ -609,18 +581,6 @@ async def generate_daily_summary(
             )
         )
 
-    from memanto.app.clients.backend import Backend, parse_backend
-
-    if parse_backend(settings.MEMANTO_BACKEND) == Backend.ON_PREM:
-        raise HTTPException(
-            status_code=501,
-            detail=(
-                "daily-summary uses the LLM Answer endpoint, which is not "
-                "available on the on-prem backend. "
-                "Switch with: memanto config backend cloud"
-            ),
-        )
-
     resolved_date = request.date or datetime.now().strftime("%Y-%m-%d")
     try:
         result = await asyncio.to_thread(
@@ -655,18 +615,6 @@ async def generate_conflict_report(
             Exception(
                 f"Session is for agent '{session.agent_id}', cannot access '{agent_id}'"
             )
-        )
-
-    from memanto.app.clients.backend import Backend, parse_backend
-
-    if parse_backend(settings.MEMANTO_BACKEND) == Backend.ON_PREM:
-        raise HTTPException(
-            status_code=501,
-            detail=(
-                "conflict detection uses the LLM Answer endpoint, which is not "
-                "available on the on-prem backend. "
-                "Switch with: memanto config backend cloud"
-            ),
         )
 
     resolved_date = request.date or datetime.now().strftime("%Y-%m-%d")

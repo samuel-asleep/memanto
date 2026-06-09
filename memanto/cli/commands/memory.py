@@ -186,15 +186,6 @@ def upload(
     """
     from pathlib import Path
 
-    from memanto.app.clients.backend import Backend
-
-    if config_manager.get_backend() == Backend.ON_PREM:
-        _error(
-            "upload is not available on the on-prem backend "
-            "(no server-side file chunking).",
-            hint="Switch with: memanto config backend cloud",
-        )
-
     start = time.perf_counter()
     active_agent_id, active_session_token = config_manager.get_active_session()
 
@@ -477,14 +468,6 @@ def answer(
     ),
 ):
     """Answer a question using RAG (Retrieval-Augmented Generation)."""
-    from memanto.app.clients.backend import Backend
-
-    if config_manager.get_backend() == Backend.ON_PREM:
-        _error(
-            "answer is not available on the on-prem backend.",
-            hint="Switch with: memanto config backend cloud",
-        )
-
     start = time.perf_counter()
     active_agent_id, active_session_token = config_manager.get_active_session()
 
@@ -541,15 +524,6 @@ def daily_summary(
     ),
 ):
     """Generate a daily AI summary from session memories."""
-    from memanto.app.clients.backend import Backend
-
-    if config_manager.get_backend() == Backend.ON_PREM:
-        _error(
-            "daily-summary uses the LLM Answer endpoint, which is not "
-            "available on the on-prem backend.",
-            hint="Switch with: memanto config backend cloud",
-        )
-
     start = time.perf_counter()
     active_agent_id, _ = config_manager.get_active_session()
 
@@ -629,15 +603,6 @@ def detect_conflicts(
 
     This is the command the schedule runs — see ``memanto schedule``.
     """
-    from memanto.app.clients.backend import Backend
-
-    if config_manager.get_backend() == Backend.ON_PREM:
-        _error(
-            "detect-conflicts uses the LLM Answer endpoint, which is not "
-            "available on the on-prem backend.",
-            hint="Switch with: memanto config backend cloud",
-        )
-
     start = time.perf_counter()
     active_agent_id, _ = config_manager.get_active_session()
 

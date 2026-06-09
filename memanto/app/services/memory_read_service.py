@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from moorcheh_sdk import MoorchehClient
 
+from memanto.app.clients.backend import get_active_llm_model
 from memanto.app.config import settings
 from memanto.app.core import create_memory_scope
 from memanto.app.utils.errors import MemoryError
@@ -657,10 +658,14 @@ class MemoryReadService:
                     raise MemoryError("No namespaces found")
                 namespace = namespaces[0]
 
-            # Generate answer
-            answer_result = self.client.answer.generate(
-                namespace=namespace, query=query, ai_model=settings.ANSWER_MODEL
-            )
+            # Generate answer. Omit ai_model when on-prem state has no LLM
+            # configured so the on-prem server uses its own default; the
+            # cloud SDK requires a string so don't pass None there.
+            gen_kwargs: dict = {"namespace": namespace, "query": query}
+            _model = get_active_llm_model(settings.ANSWER_MODEL)
+            if _model is not None:
+                gen_kwargs["ai_model"] = _model
+            answer_result = self.client.answer.generate(**gen_kwargs)
 
             return {
                 "answer": answer_result["answer"],

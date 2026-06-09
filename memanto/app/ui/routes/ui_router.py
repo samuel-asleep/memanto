@@ -13,6 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+from memanto.app.clients.backend import Backend
 from memanto.app.config import settings
 from memanto.cli.client.direct_client import DirectClient
 from memanto.cli.config.manager import ConfigManager
@@ -57,6 +58,9 @@ async def get_ui_config():
         "on_prem": {
             "url": onprem_cfg.get("url", "http://localhost:8080"),
             "embedding_provider": onprem_cfg.get("embedding_provider", ""),
+            "embedding_model": onprem_cfg.get("embedding_model", ""),
+            "llm_provider": onprem_cfg.get("llm_provider", ""),
+            "llm_model": onprem_cfg.get("llm_model", ""),
         },
         "data_dir": str(_config_manager.get_data_dir()),
         "server": {
@@ -118,13 +122,22 @@ async def update_ui_config(updates: dict):
 
     if "answer" in updates and isinstance(updates["answer"], dict):
         ans = updates["answer"]
-        _config_manager.set_answer_config(
-            model=ans.get("model"),
-            temperature=float(ans["temperature"]) if "temperature" in ans else None,
-            answer_limit=int(ans["answer_limit"]) if "answer_limit" in ans else None,
-            threshold=float(ans["threshold"]) if "threshold" in ans else None,
-            kiosk_mode=bool(ans["kiosk_mode"]) if "kiosk_mode" in ans else None,
-        )
+        # On-prem: the Answer panel is provider/model/api_key only — temperature
+        # etc. are cloud-only knobs. Persist into state.json (provider/model)
+        # and ~/.moorcheh/config.json (full block) without touching the shared
+        # cloud yaml's ``answer.*`` namespace.
+        if _config_manager.get_backend() == Backend.ON_PREM:
+            _update_onprem_answer(ans)
+        else:
+            _config_manager.set_answer_config(
+                model=ans.get("model"),
+                temperature=float(ans["temperature"]) if "temperature" in ans else None,
+                answer_limit=int(ans["answer_limit"])
+                if "answer_limit" in ans
+                else None,
+                threshold=float(ans["threshold"]) if "threshold" in ans else None,
+                kiosk_mode=bool(ans["kiosk_mode"]) if "kiosk_mode" in ans else None,
+            )
 
     if "recall" in updates and isinstance(updates["recall"], dict):
         rec = updates["recall"]
@@ -136,6 +149,171 @@ async def update_ui_config(updates: dict):
         )
 
     return {"status": "updated", "updated_keys": list(updates.keys())}
+
+
+_ONPREM_LLM_PROVIDERS = {"ollama", "openai", "cohere"}
+
+
+def _update_onprem_answer(ans: dict) -> None:
+    """Persist on-prem LLM config: state.json (provider/model) + ``~/.moorcheh/config.json``.
+
+    Does NOT restart the server — the ``/api/ui/onprem/restart`` endpoint owns
+    that. Provider/model are required; ``api_key`` is optional for paid
+    providers (falls back to whatever is currently in
+    ``~/.moorcheh/config.json``) and ignored for ollama.
+    """
+    from memanto.cli.commands.core import _recover_moorcheh_api_key
+
+    state = _config_manager.get_onprem_state()
+    embedding_provider = state.get("embedding_provider")
+    embedding_model = state.get("embedding_model")
+    if not embedding_provider or not embedding_model:
+        raise HTTPException(
+            status_code=400,
+            detail="On-prem not onboarded — run `memanto config backend on-prem` first.",
+        )
+
+    # Provider may be omitted (model-only change); reuse the currently
+    # configured provider in that case.
+    provider = (ans.get("provider") or state.get("llm_provider") or "").strip().lower()
+    model = (ans.get("model") or "").strip()
+    api_key = (ans.get("api_key") or "").strip()
+
+    if not provider or not model:
+        raise HTTPException(status_code=400, detail="Provider and model are required.")
+    if provider not in _ONPREM_LLM_PROVIDERS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported on-prem LLM provider: {provider}. "
+            f"Allowed: {', '.join(sorted(_ONPREM_LLM_PROVIDERS))}.",
+        )
+
+    if provider == "ollama":
+        api_key = ""
+    elif not api_key:
+        # User left the field blank: keep whatever key is already in
+        # ~/.moorcheh/config.json (typical case: changing model only).
+        api_key = _recover_moorcheh_api_key("llm", provider)
+        if not api_key:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{provider} requires an API key — none provided and "
+                "none found in ~/.moorcheh/config.json. Enter one and save again.",
+            )
+
+    embedding_key = _recover_moorcheh_api_key("embedding", embedding_provider)
+    try:
+        from moorcheh.user_config import (  # type: ignore[import-not-found]
+            EmbeddingConfig,
+            LlmConfig,
+            default_base_url,
+            save_runtime_config,
+        )
+
+        save_runtime_config(
+            EmbeddingConfig(
+                provider=embedding_provider,
+                model=embedding_model,
+                api_key=embedding_key or None,
+                base_url=default_base_url(embedding_provider),
+            ),
+            LlmConfig(
+                provider=provider,
+                model=model,
+                api_key=api_key or None,
+                base_url=default_base_url(provider),
+            ),
+        )
+    except ImportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"moorcheh-client not installed: {e}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to persist LLM config: {e}"
+        )
+
+    _config_manager.set_onprem_state(llm_provider=provider, llm_model=model)
+
+
+@router.post("/api/ui/onprem/restart")
+async def restart_onprem_backend():
+    """Bounce the on-prem moorcheh stack so it re-reads ``~/.moorcheh/config.json``.
+
+    ``moorcheh down`` + ``moorcheh up`` (with embedding flags recovered from
+    state.json / config.json). Blocks for up to ~6 minutes total (5min for
+    ``up``, 60s for ``/health``).
+    """
+    import subprocess
+
+    import httpx as _httpx
+
+    if _config_manager.get_backend() != Backend.ON_PREM:
+        raise HTTPException(status_code=400, detail="Active backend is not on-prem.")
+
+    from memanto.cli.commands.core import _recover_moorcheh_api_key
+
+    state = _config_manager.get_onprem_state()
+    embedding_provider = state.get("embedding_provider")
+    embedding_model = state.get("embedding_model")
+    if not embedding_provider or not embedding_model:
+        raise HTTPException(
+            status_code=400,
+            detail="On-prem not onboarded — run `memanto config backend on-prem` first.",
+        )
+    embedding_key = _recover_moorcheh_api_key("embedding", embedding_provider)
+
+    # `moorcheh down` is best-effort: if the stack isn't running, that's fine —
+    # we still want to try `up` after.
+    try:
+        subprocess.run(
+            ["moorcheh", "down"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=60,
+            check=False,
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="`moorcheh` CLI not found on PATH.")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=500, detail="`moorcheh down` timed out after 60s."
+        )
+
+    up_args = [
+        "moorcheh",
+        "up",
+        "--embedding-provider",
+        embedding_provider,
+        "--embedding-model",
+        embedding_model,
+    ]
+    if embedding_key:
+        up_args.extend(["--embedding-api-key", embedding_key])
+    try:
+        subprocess.run(up_args, check=True, timeout=300)
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(status_code=500, detail=f"`moorcheh up` failed: {e}")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=500, detail="`moorcheh up` timed out after 5 minutes."
+        )
+
+    health_url = (state.get("url") or "http://localhost:8080").rstrip("/") + "/health"
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        try:
+            resp = _httpx.get(health_url, timeout=2.0)
+            if resp.status_code == 200:
+                return {"status": "ok", "message": "Server restarted"}
+        except Exception:
+            pass
+        time.sleep(1.0)
+    raise HTTPException(
+        status_code=500,
+        detail=f"Server did not become healthy at {health_url} within 60s.",
+    )
 
 
 @router.put("/api/ui/api-key")

@@ -149,30 +149,64 @@ class ConfigManager:
         """Persist the active backend choice."""
         self.set("backend", backend.value)
 
-    # On-prem config
+    # On-prem config — strictly isolated under ~/.memanto/on-prem/state.json.
+    # On-prem onboarding/runtime must NOT write into the shared yaml; that file
+    # is the cloud's namespace.
+
+    def _onprem_state_path(self) -> Path:
+        return self.config_dir / "on-prem" / "state.json"
+
+    def get_onprem_state(self) -> dict:
+        """Read the on-prem state.json. Returns ``{}`` if missing/unreadable."""
+        p = self._onprem_state_path()
+        if not p.exists():
+            return {}
+        try:
+            data = json.loads(p.read_text())
+        except Exception:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def set_onprem_state(self, **updates) -> None:
+        """Merge ``updates`` into the on-prem state.json (creates dir if needed)."""
+        p = self._onprem_state_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        data = self.get_onprem_state()
+        data.update({k: v for k, v in updates.items() if v is not None})
+        p.write_text(json.dumps(data, indent=2))
 
     def get_onprem_config(self) -> dict:
-        """Get on-prem config dict with defaults."""
+        """Get on-prem config dict (url, embedding_provider, llm_model, ...).
+
+        Sourced exclusively from ``~/.memanto/on-prem/state.json``; defaults
+        apply only when keys are missing from state.
+        """
         defaults = {
             "url": "http://localhost:8080",
             "embedding_provider": "",
+            "embedding_model": "",
+            "llm_provider": "",
+            "llm_model": "",
         }
-        defaults.update(self.load_yaml().get("on_prem", {}))
+        defaults.update(self.get_onprem_state())
         return defaults
 
     def set_onprem_config(
         self,
         embedding_provider: str | None = None,
         url: str | None = None,
+        embedding_model: str | None = None,
+        llm_provider: str | None = None,
+        llm_model: str | None = None,
     ) -> None:
-        """Persist on-prem config values."""
-        data = self.load_yaml()
-        on_prem = data.setdefault("on_prem", {})
-        if embedding_provider is not None:
-            on_prem["embedding_provider"] = embedding_provider
-        if url is not None:
-            on_prem["url"] = url
-        self.save_yaml(data)
+        """Persist on-prem config values into ``~/.memanto/on-prem/state.json``."""
+        self.set_onprem_state(
+            embedding_provider=embedding_provider,
+            url=url,
+            embedding_model=embedding_model,
+            llm_provider=llm_provider,
+            llm_model=llm_model,
+        )
 
     # Per-backend data directory
 
@@ -269,7 +303,14 @@ class ConfigManager:
         return defaults
 
     def get_answer_config(self) -> dict:
-        """Get Answer config dict with defaults."""
+        """Get Answer config dict with defaults.
+
+        The ``model`` field is backend-specific: cloud uses the shared yaml
+        (default Bedrock Claude); on-prem uses ``llm_model`` from
+        ``~/.memanto/on-prem/state.json`` (set during onboarding). All other
+        knobs (temperature/threshold/answer_limit/kiosk_mode) are shared
+        because they describe how to query, not which provider to hit.
+        """
         data = self.load_yaml()
         answer = data.get("answer", {})
 
@@ -281,6 +322,12 @@ class ConfigManager:
             "kiosk_mode": False,
         }
         defaults.update(answer)
+        if self.get_backend() == Backend.ON_PREM:
+            # On-prem: override model with the onboarding-selected LLM. Do NOT
+            # fall back to the cloud default — pass through None so callers
+            # can omit ``ai_model`` and let the on-prem server use its
+            # ``~/.moorcheh/config.json`` LLM.
+            defaults["model"] = self.get_onprem_state().get("llm_model") or None
         return defaults
 
     def set_answer_config(

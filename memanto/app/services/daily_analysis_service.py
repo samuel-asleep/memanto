@@ -9,9 +9,8 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from moorcheh_sdk import MoorchehClient
-
-from memanto.app.clients.backend import Backend, parse_backend
+from memanto.app.clients.backend import get_active_llm_model
+from memanto.app.clients.moorcheh import get_moorcheh_client
 from memanto.app.config import get_data_dir, settings
 from memanto.app.core import create_memory_scope
 from memanto.app.services.session_service import get_session_service
@@ -29,7 +28,6 @@ class DailyAnalysisService:
 
     def __init__(
         self,
-        api_key: str,
         sessions_dir: Path | None = None,
         summaries_dir: Path | None = None,
     ):
@@ -37,11 +35,9 @@ class DailyAnalysisService:
         Initialize the daily analysis service.
 
         Args:
-            api_key: Moorcheh API key (passed from DirectClient config)
             sessions_dir: Directory where session MD files are stored
             summaries_dir: Directory where generated summaries will be saved
         """
-        self.api_key = api_key
         self.session_service = get_session_service()
         self.sessions_dir = sessions_dir or self.session_service.sessions_dir
         self.summaries_dir = summaries_dir or get_data_dir() / "summaries"
@@ -53,13 +49,6 @@ class DailyAnalysisService:
         """
         Generate a daily natural language summary for an agent and date.
         """
-        if parse_backend(settings.MEMANTO_BACKEND) == Backend.ON_PREM:
-            print(
-                "[INFO] daily_summary skipped: answer is cloud-only "
-                "(memanto config backend cloud to enable)."
-            )
-            return {"status": "skipped_on_prem"}
-
         # Find all relevant session MD files
         pattern = f"{agent_id}_{date}_*_summary.md"
         session_files = list(self.sessions_dir.glob(pattern))
@@ -80,7 +69,7 @@ class DailyAnalysisService:
 
         full_text = "\n\n---\n\n".join(combined_content)
 
-        client = MoorchehClient(api_key=self.api_key)
+        client = get_moorcheh_client()
         scope = create_memory_scope("agent", agent_id)
         namespace = scope.to_namespace()
 
@@ -104,7 +93,7 @@ Format the output as a Markdown report:
             result = client.answer.generate(
                 namespace=namespace,
                 query=summary_prompt,
-                ai_model=settings.SUMMARY_MODEL,
+                ai_model=get_active_llm_model(settings.SUMMARY_MODEL),
                 top_k=50,
             )
             summary_text = result.get("answer", "Failed to generate summary.")
@@ -149,13 +138,6 @@ Format the output as a Markdown report:
         """
         Generate a structured conflict report (Contradictions, Conflicts, Updates, Duplicates).
         """
-        if parse_backend(settings.MEMANTO_BACKEND) == Backend.ON_PREM:
-            print(
-                "[INFO] conflict_report skipped: answer is cloud-only "
-                "(memanto config backend cloud to enable)."
-            )
-            return {"status": "skipped_on_prem"}
-
         conflicts_dir = Path.home() / ".memanto" / "conflicts"
         conflicts_dir.mkdir(parents=True, exist_ok=True)
 
@@ -172,7 +154,7 @@ Format the output as a Markdown report:
 
         full_text = "\n\n---\n\n".join(combined_content)
 
-        client = MoorchehClient(api_key=self.api_key)
+        client = get_moorcheh_client()
         scope = create_memory_scope("agent", agent_id)
         namespace = scope.to_namespace()
 
@@ -214,7 +196,7 @@ Example response format:
             result = client.answer.generate(
                 namespace=namespace,
                 query=conflict_prompt,
-                ai_model=settings.SUMMARY_MODEL,
+                ai_model=get_active_llm_model(settings.SUMMARY_MODEL),
                 top_k=50,
             )
             conflict_text = result.get("answer", "[]")

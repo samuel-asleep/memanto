@@ -309,7 +309,7 @@ class DirectClient:
                 DailyAnalysisService,
             )
 
-            self._daily_analysis_service = DailyAnalysisService(api_key=self.api_key)
+            self._daily_analysis_service = DailyAnalysisService()
         return self._daily_analysis_service
 
     def _get_export_service(self):
