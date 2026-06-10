@@ -8,7 +8,7 @@ Mapping between abstractions
 ----------------------------
 
     BaseStore                         ->  Memanto
-    namespace (tuple[str, ...])       ->  reserved tags  ``lg:ns:0:<p0>``, ...
+    namespace (tuple[str, ...])       ->  agent_id       (``langgraph_<p0>_<p1>...``)
     key (str)                         ->  reserved tag   ``lg:key:<key>``
     value["kind"] / value["type"]     ->  memory_type    (auto-parsed if absent)
     value["title"]                    ->  title          (auto-derived if absent)
@@ -29,8 +29,6 @@ Documented limitations
 * **_do_get** is best-effort: uses ``recall_recent`` (unbiased by query)
   up to the 100-result cap, then a semantic fallback. A key stored long
   ago beyond the cap window may not be found.
-* **list_namespaces** is best-effort: samples recent memories and derives
-  namespaces from their tags.
 """
 
 from __future__ import annotations

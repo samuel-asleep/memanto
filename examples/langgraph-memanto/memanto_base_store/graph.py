@@ -35,7 +35,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.store.base import BaseStore
 from langgraph.types import RetryPolicy
-from memanto_base_store.memanto_store import MemantoStore
+from langgraph_memanto import MemantoStore
 from memanto_base_store.state import SupportState
 from pydantic import BaseModel, Field, model_validator
 

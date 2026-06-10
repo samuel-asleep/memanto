@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 
 from dotenv import load_dotenv
-from memanto_base_store.memanto_store import MemantoStore
+from langgraph_memanto import MemantoStore
 
 from memanto.cli.client.sdk_client import SdkClient
 
