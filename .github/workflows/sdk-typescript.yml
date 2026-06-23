@@ -13,6 +13,9 @@ on:
       - "sdks/typescript/**"
       - ".github/workflows/sdk-typescript.yml"
 
+permissions:
+  contents: read
+
 jobs:
   openapi-drift:
     runs-on: ubuntu-latest
