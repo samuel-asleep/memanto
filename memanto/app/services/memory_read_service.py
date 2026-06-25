@@ -132,6 +132,11 @@ class MemoryReadService:
             # Apply TTL enforcement - filter out expired memories
             all_results = self._filter_expired_memories(all_results)
 
+            if min_confidence is not None:
+                all_results = self._filter_by_min_confidence(
+                    all_results, min_confidence
+                )
+
             # Apply pagination (offset + limit)
             paginated_results = all_results[offset : offset + limit]
             has_more = len(all_results) > offset + limit
@@ -415,7 +420,7 @@ class MemoryReadService:
         """
         Build enhanced query with Moorcheh's #key:value metadata filters
 
-        Example: "user authentication #memory_type:fact #status:active #confidence:high"
+        Example: "user authentication #memory_type:fact #status:active"
 
         Note: Temporal filters (created_after/created_before) are applied as post-processing
         since Moorcheh's metadata filters use string comparison
@@ -437,12 +442,10 @@ class MemoryReadService:
             for status in status_filter:
                 filter_parts.append(f"#status:{status}")
 
-        # Add confidence filter (convert to category if needed)
-        if min_confidence is not None:
-            if min_confidence >= 0.8:
-                filter_parts.append("#confidence:high")
-            elif min_confidence >= 0.5:
-                filter_parts.append("#confidence:medium")
+        # Numeric confidence is stored as a number in memory documents. Applying
+        # it via Moorcheh keyword syntax would require exact categorical values
+        # that are never written, so callers filter it after formatting results.
+        _ = min_confidence
 
         # Add custom metadata filters
         if metadata_filters:
@@ -499,6 +502,23 @@ class MemoryReadService:
             except (ValueError, AttributeError):
                 pass  # Skip invalid timestamps
 
+        return filtered
+
+    def _filter_by_min_confidence(
+        self, results: list[dict[str, Any]], min_confidence: float
+    ) -> list[dict[str, Any]]:
+        """Keep only results whose numeric confidence meets the threshold."""
+        filtered: list[dict[str, Any]] = []
+        for result in results:
+            raw_confidence = result.get("confidence")
+            try:
+                confidence = float(raw_confidence)
+            except (TypeError, ValueError):
+                if min_confidence == 0.0:
+                    filtered.append(result)
+                continue
+            if confidence >= min_confidence:
+                filtered.append(result)
         return filtered
 
     def _filter_expired_memories(
