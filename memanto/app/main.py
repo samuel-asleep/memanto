@@ -73,10 +73,19 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+# Guard: wildcard origins + allow_credentials=True causes Starlette to reflect
+# any request Origin back with Access-Control-Allow-Credentials: true, letting
+# any site make credentialed cross-origin requests (CORS misconfiguration).
+_wildcard_origins = "*" in settings.ALLOWED_ORIGINS
+if _wildcard_origins and settings.CORS_ALLOW_CREDENTIALS:
+    raise ValueError(
+        "CORS misconfiguration: CORS_ALLOW_CREDENTIALS=true is incompatible with "
+        "ALLOWED_ORIGINS=['*']. Specify explicit trusted origins when enabling credentials."
+    )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
