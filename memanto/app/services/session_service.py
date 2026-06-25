@@ -7,6 +7,7 @@ Uses JWT tokens for stateless authentication.
 
 import json
 import os
+import secrets
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -60,11 +61,15 @@ class SessionService:
         resolved_secret_key = (
             secret_key
             or os.getenv("MEMANTO_SECRET_KEY")
-            or "memanto-default-secret-change-in-production"
+            or self._generate_secure_secret_key()
         )
         self.secret_key: str = resolved_secret_key
         self.sessions_dir = sessions_dir or get_data_dir() / "sessions"
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
+
+    def _generate_secure_secret_key(self) -> str:
+        """Generate a per-instance fallback secret for JWT signing."""
+        return secrets.token_hex(32)
 
     def _generate_namespace(self, agent_id: str) -> str:
         """
