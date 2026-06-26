@@ -11,6 +11,7 @@ from memanto.app.constants import MemoryType, ScopeType, SourceType, StatusType
 
 
 def _validate_non_blank_content(value: str) -> str:
+    """Reject whitespace-only memory content before it reaches storage."""
     if not value.strip():
         raise ValueError("Memory content must be a non-empty string")
     return value
@@ -36,6 +37,7 @@ class MemoryStoreRequest(BaseModel):
     @field_validator("content")
     @classmethod
     def validate_content(cls, value: str) -> str:
+        """Ensure stored memories contain useful non-blank content."""
         return _validate_non_blank_content(value)
 
 
@@ -55,6 +57,7 @@ class MemoryBatchItem(BaseModel):
     @field_validator("content")
     @classmethod
     def validate_content(cls, value: str) -> str:
+        """Ensure batch memory items contain useful non-blank content."""
         return _validate_non_blank_content(value)
 
 
@@ -92,6 +95,7 @@ class BatchRememberItem(BaseModel):
     @field_validator("content")
     @classmethod
     def validate_content(cls, value: str) -> str:
+        """Ensure session memory writes contain useful non-blank content."""
         return _validate_non_blank_content(value)
 
 
