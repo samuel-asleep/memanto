@@ -50,6 +50,8 @@ _config_manager = ConfigManager()
 
 
 class RecallRequest(BaseModel):
+    """Request body for semantic recall against an agent session."""
+
     query: str = Field(..., min_length=1, description="Search query")
     limit: int | None = Field(default=None, ge=1, description="Max results")
     min_similarity: float | None = Field(
@@ -67,6 +69,8 @@ class RecallRequest(BaseModel):
 
 
 class RecallAsOfRequest(BaseModel):
+    """Request body for point-in-time temporal recall."""
+
     as_of: datetime = Field(
         ...,
         description="Point-in-time — YYYY-MM-DD (defaults to end of day) or full ISO datetime e.g. 2025-11-01T14:30:00Z",
@@ -77,6 +81,7 @@ class RecallAsOfRequest(BaseModel):
     @field_validator("as_of", mode="before")
     @classmethod
     def parse_as_of(cls, v: object) -> datetime:
+        """Normalize date-only and ISO inputs to a timezone-aware timestamp."""
         if isinstance(v, datetime):
             return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
         if isinstance(v, date):
