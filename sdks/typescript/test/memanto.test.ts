@@ -33,6 +33,17 @@ function startFakeApi(): Promise<{
         };
 
         if (url === "/health") return reply(200, { status: "ok" });
+        if (url === "/api/v2/status" && req.method === "GET")
+          return reply(200, {
+            session_id: "existing-session",
+            agent_id: "existing-agent",
+            namespace: "memanto_agent_existing_agent",
+            started_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 3600_000).toISOString(),
+            status: "active",
+            pattern: "default",
+            time_remaining_seconds: 3600,
+          });
         if (url.startsWith("/api/v2/agents/test-agent/activate"))
           return reply(200, {
             session_token: "fake-token",
@@ -122,6 +133,24 @@ describe("Memanto", () => {
 
     const res = await m.recall({ query: "coffee" });
     expect(res).toMatchObject({ count: 0 });
+  });
+
+  it("reads status without bootstrapping an agent session", async () => {
+    const api = await startFakeApi();
+    cleanupFns.push(api.close);
+
+    const m = new Memanto({ agentId: "test-agent", baseUrl: api.url });
+    cleanupFns.push(() => m.close());
+
+    const res = await m.status();
+    expect(res).toMatchObject({
+      session_id: "existing-session",
+      agent_id: "existing-agent",
+    });
+    expect(api.recorded.map((r) => `${r.method} ${r.url}`)).toEqual([
+      "GET /api/v2/status",
+    ]);
+    expect(api.recorded[0]?.headers["x-session-token"]).toBeUndefined();
   });
 
   it("rejects empty agentId", () => {
