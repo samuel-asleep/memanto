@@ -466,6 +466,31 @@ class TestMEMANTOAPI:
         assert call_kwargs["ai_model"] == "anthropic.claude-sonnet-4-6"
 
     @pytest.mark.asyncio
+    async def test_answer_rejects_blank_question(
+        self, client, auth_headers, mock_moorcheh
+    ):
+        """Whitespace-only questions should fail before calling Moorcheh."""
+        await client.post(
+            "/api/v2/agents",
+            headers=auth_headers,
+            json={"agent_id": self.TEST_AGENT_ID},
+        )
+        activate_resp = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/activate", headers=auth_headers
+        )
+        token = activate_resp.json()["session_token"]
+
+        headers = {**auth_headers, "X-Session-Token": token}
+        response = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/answer",
+            headers=headers,
+            json={"question": "   "},
+        )
+
+        assert response.status_code == 422
+        mock_moorcheh.answer.generate.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_recall_with_session(self, client, auth_headers, mock_moorcheh):
         """Test semantic recall with session token"""
         # Setup session
@@ -523,6 +548,31 @@ class TestMEMANTOAPI:
         assert response.status_code == 200
         call_kwargs = mock_moorcheh.similarity_search.query.call_args.kwargs
         assert "memory_type:fact" in call_kwargs["query"]
+
+    @pytest.mark.asyncio
+    async def test_recall_rejects_blank_query(
+        self, client, auth_headers, mock_moorcheh
+    ):
+        """Whitespace-only recall queries should fail before calling Moorcheh."""
+        await client.post(
+            "/api/v2/agents",
+            headers=auth_headers,
+            json={"agent_id": self.TEST_AGENT_ID},
+        )
+        activate_resp = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/activate", headers=auth_headers
+        )
+        token = activate_resp.json()["session_token"]
+
+        headers = {**auth_headers, "X-Session-Token": token}
+        response = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/recall",
+            headers=headers,
+            json={"query": " \n\t "},
+        )
+
+        assert response.status_code == 422
+        mock_moorcheh.similarity_search.query.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_agent(self, client, auth_headers):

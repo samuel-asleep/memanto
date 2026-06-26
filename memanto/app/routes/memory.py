@@ -57,6 +57,13 @@ class RecallRequest(BaseModel):
     )
     type: list[str] | None = Field(default=None, description="Memory type filters")
 
+    @field_validator("query")
+    @classmethod
+    def query_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("query must be a non-empty string")
+        return value
+
 
 class RecallAsOfRequest(BaseModel):
     as_of: datetime = Field(
