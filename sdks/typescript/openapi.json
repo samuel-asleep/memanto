@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Memanto - Your agents focus. Memanto remembers.",
+    "title": "Memanto - Memory that AI Agents Love!",
     "description": "A memory layer service for agentic AI systems using Moorcheh SDK",
     "version": "0.2.4.dev12+g0e7dd4f.d20260623"
   },

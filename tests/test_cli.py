@@ -126,7 +126,7 @@ class TestMEMANTOCLI:
         """Test 'memanto --help'"""
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        assert "Your agents focus. Memanto remembers." in result.stdout
+        assert "Memory that AI Agents Love!" in result.stdout
 
     def test_status_command(self, mock_all_clients):
         """Test 'memanto status'"""
