@@ -7,6 +7,7 @@ Replaces legacy agent memory endpoints with session-based auth.
 
 import asyncio
 import os
+import re
 import tempfile
 from datetime import date, datetime, time, timezone
 from pathlib import Path
@@ -47,6 +48,16 @@ from memanto.cli.config.manager import ConfigManager
 router = APIRouter()
 
 _config_manager = ConfigManager()
+_SAFE_AGENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+_SAFE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _validate_summary_key(agent_id: str, date_str: str) -> None:
+    """Reject identifiers that are unsafe for summary/conflict file paths."""
+    if not _SAFE_AGENT_ID_RE.fullmatch(agent_id) or not _SAFE_DATE_RE.fullmatch(
+        date_str
+    ):
+        raise HTTPException(status_code=400, detail="Invalid summary identifier")
 
 
 class RecallRequest(BaseModel):
@@ -842,12 +853,13 @@ async def generate_daily_summary(
         )
 
     resolved_date = request.date or datetime.now().strftime("%Y-%m-%d")
+    _validate_summary_key(agent_id, resolved_date)
     try:
         result = await asyncio.to_thread(
             DirectClient(settings.MOORCHEH_API_KEY).generate_daily_summary,
             agent_id,
             resolved_date,
-            request.output_path,
+            None,
         )
         return {
             "agent_id": agent_id,
@@ -877,6 +889,7 @@ async def generate_conflict_report(
         )
 
     resolved_date = request.date or datetime.now().strftime("%Y-%m-%d")
+    _validate_summary_key(agent_id, resolved_date)
     try:
         result = await asyncio.to_thread(
             DirectClient(settings.MOORCHEH_API_KEY).generate_conflict_report,
@@ -914,16 +927,18 @@ async def list_conflicts(
             detail=f"Session is for agent '{session.agent_id}', cannot access '{agent_id}'",
         )
 
+    resolved_date = date or datetime.now().strftime("%Y-%m-%d")
+    _validate_summary_key(agent_id, resolved_date)
     try:
         conflicts = await asyncio.to_thread(
             DirectClient(settings.MOORCHEH_API_KEY).list_conflicts,
             agent_id,
-            date,
+            resolved_date,
         )
         return {
             "agent_id": agent_id,
             "session_id": session.session_id,
-            "date": date or datetime.now().strftime("%Y-%m-%d"),
+            "date": resolved_date,
             "conflicts": conflicts,
             "count": len(conflicts),
         }
@@ -949,6 +964,7 @@ async def resolve_conflict(
         )
 
     resolved_date = request.date or datetime.now().strftime("%Y-%m-%d")
+    _validate_summary_key(agent_id, resolved_date)
     try:
         result = await asyncio.to_thread(
             DirectClient(settings.MOORCHEH_API_KEY).resolve_conflict,

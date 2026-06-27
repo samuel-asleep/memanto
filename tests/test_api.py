@@ -1070,6 +1070,103 @@ class TestMEMANTOAPI:
         assert data["action"] == "keep_new"
 
     @pytest.mark.asyncio
+    async def test_conflicts_generate_api_rejects_traversal_date(
+        self, client, auth_headers
+    ):
+        """The session API must reject conflict report dates that escape paths."""
+        await client.post(
+            "/api/v2/agents",
+            headers=auth_headers,
+            json={"agent_id": self.TEST_AGENT_ID},
+        )
+        activate_resp = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/activate", headers=auth_headers
+        )
+        token = activate_resp.json()["session_token"]
+        headers = {**auth_headers, "X-Session-Token": token}
+
+        with patch("memanto.app.routes.memory.DirectClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.generate_conflict_report.return_value = {
+                "conflicts": {"status": "success"}
+            }
+
+            response = await client.post(
+                f"/api/v2/agents/{self.TEST_AGENT_ID}/conflicts/generate",
+                headers=headers,
+                json={"date": "../../outside"},
+            )
+
+        assert response.status_code == 400
+        mock_client.generate_conflict_report.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_daily_summary_api_ignores_client_output_path(
+        self, client, auth_headers
+    ):
+        """The session API must not pass client-controlled output paths to disk writes."""
+        await client.post(
+            "/api/v2/agents",
+            headers=auth_headers,
+            json={"agent_id": self.TEST_AGENT_ID},
+        )
+        activate_resp = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/activate", headers=auth_headers
+        )
+        token = activate_resp.json()["session_token"]
+        headers = {**auth_headers, "X-Session-Token": token}
+
+        with patch("memanto.app.routes.memory.DirectClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.generate_daily_summary.return_value = {
+                "summary": {"status": "success"},
+                "export": {"status": "ok"},
+            }
+
+            response = await client.post(
+                f"/api/v2/agents/{self.TEST_AGENT_ID}/daily-summary",
+                headers=headers,
+                json={"date": "2026-06-27", "output_path": "../../outside.md"},
+            )
+
+        assert response.status_code == 200
+        mock_client.generate_daily_summary.assert_called_once_with(
+            self.TEST_AGENT_ID, "2026-06-27", None
+        )
+
+    @pytest.mark.asyncio
+    async def test_daily_summary_api_rejects_traversal_date(
+        self, client, auth_headers
+    ):
+        """The session API must reject dates that would escape summary filenames."""
+        await client.post(
+            "/api/v2/agents",
+            headers=auth_headers,
+            json={"agent_id": self.TEST_AGENT_ID},
+        )
+        activate_resp = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/activate", headers=auth_headers
+        )
+        token = activate_resp.json()["session_token"]
+        headers = {**auth_headers, "X-Session-Token": token}
+
+        with patch("memanto.app.routes.memory.DirectClient") as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.generate_daily_summary.return_value = {
+                "summary": {"status": "success"},
+                "export": {"status": "ok"},
+            }
+
+            response = await client.post(
+                f"/api/v2/agents/{self.TEST_AGENT_ID}/daily-summary",
+                headers=headers,
+                json={"date": "../../outside"},
+            )
+
+        assert response.status_code == 400
+        mock_client.generate_daily_summary.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_upload_file_with_session(self, client, auth_headers, mock_moorcheh):
         """Test file upload to agent's memory namespace"""
         # Setup agent and session
