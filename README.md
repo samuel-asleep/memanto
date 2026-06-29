@@ -100,7 +100,7 @@ Switch between local and cloud at any time with `memanto config backend`.
 - **Fewer tokens burned on repeated context.** Memories are retrieved only when relevant, so context windows go further.
 - **Memories searchable the instant they're stored.** Zero indexing wait, no LLM extraction tax at write time.
 - **One `pip install`.** No vector DB to provision, no schema, no rerankers, no backend service to babysit.
-- **Flexible deployment.** Choose between running the backend fully local, using it as a cloud SaaS, owning your own VPC, or switching between any of these options anytime you want.
+- **Flexible deployment.** Choose between running the backend fully local, using it as a cloud SaaS, hosting in your own VPC, or switching between any of these options anytime you want.
 
 ---
 
@@ -174,7 +174,7 @@ This means Memanto doesn't need a separate vector DB, embedding pipeline, or rer
   </a>
 </p>
 
-### Local Dashboard For Best UX
+## Local Dashboard For Best UX
 
 <p align="center">
   <a href="https://www.youtube.com/watch?v=5n976CmzohE">
