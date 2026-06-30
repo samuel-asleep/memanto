@@ -262,6 +262,18 @@ def _update_onprem_answer(ans: dict) -> None:
     _config_manager.set_onprem_state(llm_provider=provider, llm_model=model)
 
 
+_restart_lock: "asyncio.Lock | None" = None
+
+
+def _get_restart_lock() -> "asyncio.Lock":
+    """Return (creating lazily) the module-level restart serialisation lock."""
+    global _restart_lock
+    import asyncio
+    if _restart_lock is None:
+        _restart_lock = asyncio.Lock()
+    return _restart_lock
+
+
 @router.post("/api/ui/onprem/restart")
 async def restart_onprem_backend():
     """Bounce the on-prem moorcheh stack so it re-reads ``~/.moorcheh/config.json``.
@@ -269,12 +281,22 @@ async def restart_onprem_backend():
     ``moorcheh down`` + ``moorcheh up`` (with embedding flags recovered from
     state.json / config.json). Waits up to ~6 minutes total (5min for
     ``up``, 60s for ``/health``).
+
+    A module-level async lock prevents concurrent restart requests from
+    interleaving ``down``/``up`` calls against the same Moorcheh stack,
+    which can leave the backend in an inconsistent state.
     """
     import asyncio as _asyncio
     import subprocess
 
     import httpx as _httpx
 
+    async with _get_restart_lock():
+        return await _do_restart_onprem_backend(_asyncio, subprocess, _httpx)
+
+
+async def _do_restart_onprem_backend(_asyncio, subprocess, _httpx):
+    """Execute the actual restart sequence (called under the restart lock)."""
     if _config_manager.get_backend() != Backend.ON_PREM:
         raise HTTPException(status_code=400, detail="Active backend is not on-prem.")
 
