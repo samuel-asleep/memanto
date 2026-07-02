@@ -1229,9 +1229,7 @@ class TestMEMANTOAPI:
         )
 
     @pytest.mark.asyncio
-    async def test_daily_summary_api_rejects_traversal_date(
-        self, client, auth_headers
-    ):
+    async def test_daily_summary_api_rejects_traversal_date(self, client, auth_headers):
         """The session API must reject dates that would escape summary filenames."""
         await client.post(
             "/api/v2/agents",
@@ -1364,11 +1362,12 @@ def _mock_ui_config_manager():
 
 
 class TestCWE200ApiKeyLeak:
-    TEST_AGENT_ID = "test-agent"
     """
     PoC test for CWE-200: API key leaked in plaintext via /api/ui/config endpoint.
     Verify that the raw API key is never returned (it is completely removed).
     """
+
+    TEST_AGENT_ID = "test-agent"
 
     @pytest.mark.asyncio
     async def test_config_endpoint_does_not_return_api_key(
@@ -1404,6 +1403,7 @@ class TestCWE200ApiKeyLeak:
     async def test_daily_summary_rejects_traversal_agent_id(
         self, client, tmp_path, _mock_ui_config_manager
     ):
+        """The UI summary reader must reject agent IDs that escape the data dir."""
         data_dir = tmp_path / "data"
         (data_dir / "summaries").mkdir(parents=True)
         outside = tmp_path / "outside_2026-06-27.md"
@@ -1421,6 +1421,7 @@ class TestCWE200ApiKeyLeak:
     async def test_daily_summary_rejects_newline_suffixed_agent_id(
         self, client, tmp_path, _mock_ui_config_manager
     ):
+        """The UI summary reader must reject control characters in agent IDs."""
         data_dir = tmp_path / "data"
         (data_dir / "summaries").mkdir(parents=True)
 
@@ -1436,6 +1437,7 @@ class TestCWE200ApiKeyLeak:
     async def test_generate_daily_summary_ignores_client_output_path(
         self, client, _mock_ui_config_manager
     ):
+        """The UI summary generator must ignore client-controlled output paths."""
         mock_direct_client = MagicMock()
         mock_direct_client.generate_daily_summary.return_value = {
             "output_path": "/tmp/memanto/summaries/agent-1_2026-06-27.md",
@@ -1464,6 +1466,7 @@ class TestCWE200ApiKeyLeak:
     async def test_conflicts_list_rejects_traversal_agent_id(
         self, client, _mock_ui_config_manager
     ):
+        """The UI conflict list must reject traversal in agent IDs."""
         mock_direct_client = MagicMock()
 
         with patch(
@@ -1482,6 +1485,7 @@ class TestCWE200ApiKeyLeak:
     async def test_conflict_scans_rejects_glob_agent_id(
         self, client, _mock_ui_config_manager
     ):
+        """The UI conflict scan listing must reject glob-style agent IDs."""
         resp = await client.get(
             "/api/ui/conflict-scans",
             params={"agent_id": "agent-*"},
@@ -1493,6 +1497,7 @@ class TestCWE200ApiKeyLeak:
     async def test_generate_conflict_report_rejects_traversal_date(
         self, client, _mock_ui_config_manager
     ):
+        """The UI conflict generator must reject dates that escape paths."""
         mock_direct_client = MagicMock()
 
         with patch(
@@ -1511,6 +1516,7 @@ class TestCWE200ApiKeyLeak:
     async def test_resolve_conflict_rejects_traversal_agent_id(
         self, client, _mock_ui_config_manager
     ):
+        """The UI conflict resolver must reject traversal in agent IDs."""
         mock_direct_client = MagicMock()
 
         with patch(
