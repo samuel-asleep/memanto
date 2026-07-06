@@ -114,7 +114,19 @@ class TestSessionService:
             algorithm="HS256",
         )
 
-        payload = session_service.validate_session(token)
+        from memanto.app.models.session import SessionStatus
+
+        mock_session = Session(
+            session_id="sess-test",
+            session_token=token,
+            agent_id="test-agent",
+            namespace="memanto_agent_test-agent",
+            started_at=datetime(2026, 3, 19, 14, 0, 0),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            status=SessionStatus.ACTIVE,
+        )
+        with patch.object(session_service, "get_session", return_value=mock_session):
+            payload = session_service.validate_session(token)
 
         assert payload.agent_id == "test-agent"
         assert payload.expires_at.tzinfo is not None
@@ -545,8 +557,7 @@ class TestMemoryWriteServiceTimestamps:
             type="preference",
             title="Imported fact",
             content="Original imported memory",
-            scope_type="agent",
-            scope_id="test-agent",
+            agent_id="test-agent",
             actor_id="test-agent",
             source="mem0",
             provenance="imported",
@@ -558,8 +569,6 @@ class TestMemoryWriteServiceTimestamps:
         uploaded = client.documents.upload.call_args.kwargs["documents"][0]
         assert uploaded["created_at"] == "2020-01-02T03:04:05"
         assert memory.created_at.tzinfo is None
-        memory.compute_confidence()
-        memory.trust_score()
 
     def test_batch_store_overrides_non_imported_created_at(self):
         from memanto.app.core import MemoryRecord
@@ -573,8 +582,7 @@ class TestMemoryWriteServiceTimestamps:
         memory = MemoryRecord(
             title="User fact",
             content="Fresh user memory",
-            scope_type="agent",
-            scope_id="test-agent",
+            agent_id="test-agent",
             actor_id="test-agent",
             source="user",
             provenance="explicit_statement",
