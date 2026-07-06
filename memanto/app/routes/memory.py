@@ -61,6 +61,23 @@ def _validate_summary_key(agent_id: str, date_str: str) -> None:
         raise HTTPException(status_code=400, detail="Invalid summary identifier")
 
 
+def _validate_memory_type_filters(value: list[str] | None) -> list[str] | None:
+    """Validate optional memory type filters against supported memory types."""
+    if value is None:
+        return value
+
+    invalid = [
+        memory_type for memory_type in value if memory_type not in VALID_MEMORY_TYPES
+    ]
+    if invalid:
+        valid_types = ", ".join(sorted(VALID_MEMORY_TYPES))
+        raise ValueError(
+            f"Invalid memory type filter(s): {', '.join(invalid)}. "
+            f"Must be one of: {valid_types}."
+        )
+    return value
+
+
 class RecallRequest(BaseModel):
     """Request body for semantic memory recall."""
 
@@ -79,6 +96,12 @@ class RecallRequest(BaseModel):
             raise ValueError("query must be a non-empty string")
         return value
 
+    @field_validator("type")
+    @classmethod
+    def type_filters_must_be_valid(cls, value: list[str] | None) -> list[str] | None:
+        """Reject recall filters that are not supported memory types."""
+        return _validate_memory_type_filters(value)
+
 
 class RecallAsOfRequest(BaseModel):
     """Request body for point-in-time memory recall."""
@@ -89,6 +112,12 @@ class RecallAsOfRequest(BaseModel):
     )
     limit: int | None = Field(default=None, ge=1, description="Max results")
     type: list[str] | None = Field(default=None, description="Memory type filters")
+
+    @field_validator("type")
+    @classmethod
+    def type_filters_must_be_valid(cls, value: list[str] | None) -> list[str] | None:
+        """Reject as-of recall filters that are not supported memory types."""
+        return _validate_memory_type_filters(value)
 
     @field_validator("as_of", mode="before")
     @classmethod
@@ -127,6 +156,12 @@ class RecallChangedSinceRequest(BaseModel):
     limit: int | None = Field(default=None, ge=1, description="Max results")
     type: list[str] | None = Field(default=None, description="Memory type filters")
 
+    @field_validator("type")
+    @classmethod
+    def type_filters_must_be_valid(cls, value: list[str] | None) -> list[str] | None:
+        """Reject changed-since recall filters that are not supported memory types."""
+        return _validate_memory_type_filters(value)
+
     @field_validator("since", mode="before")
     @classmethod
     def parse_since(cls, v: object) -> datetime:
@@ -159,6 +194,12 @@ class RecallRecentRequest(BaseModel):
 
     limit: int | None = Field(default=None, ge=1, description="Max results")
     type: list[str] | None = Field(default=None, description="Memory type filters")
+
+    @field_validator("type")
+    @classmethod
+    def type_filters_must_be_valid(cls, value: list[str] | None) -> list[str] | None:
+        """Reject recent-recall filters that are not supported memory types."""
+        return _validate_memory_type_filters(value)
 
 
 class MemoryEditRequest(BaseModel):
