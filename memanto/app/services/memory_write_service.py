@@ -13,6 +13,8 @@ from memanto.app.services.memory_parsing_service import MemoryParsingService
 from memanto.app.utils.errors import MemoryError
 from memanto.app.utils.ids import generate_memory_id
 
+SUCCESSFUL_UPLOAD_STATUSES = {"queued", "success", "ok"}
+
 
 class MemoryWriteService:
     """Persist memory records to Moorcheh-backed namespaces."""
@@ -197,7 +199,11 @@ class MemoryWriteService:
                         result["status"] = moorcheh_status
 
             # Count successes and failures
-            successful = sum(1 for r in results if r["status"] in ["queued", "success"])
+            successful = sum(
+                1
+                for r in results
+                if str(r["status"]).lower() in SUCCESSFUL_UPLOAD_STATUSES
+            )
             failed = sum(1 for r in results if r["status"] == "failed")
 
             return {
