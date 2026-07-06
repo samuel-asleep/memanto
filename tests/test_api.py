@@ -1293,7 +1293,42 @@ class TestMEMANTOAPI:
         data = response.json()
         assert data["agent_id"] == self.TEST_AGENT_ID
         assert data["file_name"] == "notes.txt"
+        assert data["file_size"] == 1024
         assert data["status"] == "uploaded"
+
+    @pytest.mark.asyncio
+    async def test_upload_file_accepts_snake_case_file_size(
+        self, client, auth_headers, mock_moorcheh
+    ):
+        """On-prem upload adapter returns file_size instead of fileSize."""
+        await client.post(
+            "/api/v2/agents",
+            headers=auth_headers,
+            json={"agent_id": self.TEST_AGENT_ID},
+        )
+        activate_resp = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/activate", headers=auth_headers
+        )
+        token = activate_resp.json()["session_token"]
+
+        mock_moorcheh.documents.upload_file.return_value = {
+            "success": True,
+            "message": "File uploaded successfully",
+            "file_name": "notes.txt",
+            "file_size": 2048,
+        }
+
+        headers = {**auth_headers, "X-Session-Token": token}
+        response = await client.post(
+            f"/api/v2/agents/{self.TEST_AGENT_ID}/upload-file",
+            headers=headers,
+            files={"file": ("notes.txt", b"on-prem payload", "text/plain")},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["file_name"] == "notes.txt"
+        assert data["file_size"] == 2048
 
     @pytest.mark.asyncio
     async def test_upload_file_unsupported_extension(self, client, auth_headers):

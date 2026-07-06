@@ -577,12 +577,16 @@ async def upload_file(
 
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+        file_size = result.get("fileSize")
+        if file_size is None:
+            file_size = result.get("file_size")
+
         return {
             "agent_id": agent_id,
             "session_id": session.session_id,
             "namespace": namespace,
             "file_name": original_name,
-            "file_size": result.get("fileSize"),
+            "file_size": file_size,
             "status": "uploaded" if result.get("success") else "failed",
             "message": result.get("message", ""),
         }

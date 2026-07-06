@@ -817,14 +817,17 @@ class SdkClient:
             namespace_name=namespace,
             file_path=path,
         )
+        file_size = result.get("fileSize")
+        if file_size is None:
+            file_size = result.get("file_size", 0)
 
         return {
             "agent_id": agent_id,
             "namespace": namespace,
             "success": result.get("success", False),
             "message": result.get("message", ""),
-            "file_name": result.get("fileName", path.name),
-            "file_size": result.get("fileSize", 0),
+            "file_name": result.get("fileName") or result.get("file_name", path.name),
+            "file_size": file_size,
         }
 
     def recall(
