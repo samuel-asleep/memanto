@@ -439,6 +439,42 @@ class TestMemoryWriteServiceDelete:
         )
         client.documents.upload.assert_called_once()
 
+    def test_update_memory_preserves_extra_fields_but_drops_removed_trust_fields(self):
+        from memanto.app.services.memory_write_service import MemoryWriteService
+
+        client = MagicMock()
+        client.documents.delete.return_value = {"status": "success"}
+        client.documents.upload.return_value = {"status": "queued"}
+        existing_memory = {
+            "id": "mem-1",
+            "type": "fact",
+            "title": "Original title",
+            "content": "Original content",
+            "actor_id": "tester",
+            "source": "manual",
+            "confidence": 0.8,
+            "status": "active",
+            "tags": [],
+            # Extra field not in the MemoryRecord schema (e.g. on-prem data_store.json).
+            "original_id": "orig-123",
+            # Trust field removed 2026-06-29; must not be resurrected on update.
+            "validation_count": 5,
+        }
+
+        with patch(
+            "memanto.app.services.memory_read_service.MemoryReadService.get_memory",
+            return_value=existing_memory,
+        ):
+            MemoryWriteService(client).update_memory(
+                "mem-1",
+                "memanto_agent_test-agent",
+                {"content": "Updated content"},
+            )
+
+        uploaded = client.documents.upload.call_args.kwargs["documents"][0]
+        assert uploaded.get("original_id") == "orig-123"
+        assert "validation_count" not in uploaded
+
 
 class TestMemoryReadServiceFormatting:
     def test_format_memory_item_preserves_falsey_metadata_values(self):

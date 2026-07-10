@@ -16,6 +16,20 @@ from memanto.app.utils.temporal_helpers import as_utc_naive
 
 SUCCESSFUL_UPLOAD_STATUSES = {"queued", "success", "ok"}
 
+# Trust fields removed from the active schema on 2026-06-29 (see
+# memanto/app/legacy/REMOVED.md). Old on-prem data_store.json records may still
+# carry them; they must never be copied forward on update or we resurrect dead
+# schema that no live read/write flow populates.
+_REMOVED_TRUST_FIELDS = frozenset(
+    {
+        "superseded_by",
+        "supersedes",
+        "validated_at",
+        "validation_count",
+        "contradiction_detected",
+    }
+)
+
 
 class MemoryWriteService:
     """Persist memory records to Moorcheh-backed namespaces."""
@@ -353,9 +367,16 @@ class MemoryWriteService:
             # in on-prem data_store.json) that aren't part of the MemoryRecord schema.
             existing_meta = existing_memory_data.get("metadata", existing_memory_data)
             if isinstance(existing_meta, dict):
+                # ``document`` is a TypedDict; cast to a plain dict to attach
+                # extra schema-external keys (e.g. original_id) dynamically.
+                extra_document = cast(dict[str, Any], document)
                 for key in existing_meta:
-                    if key not in document and key != "text":
-                        document[key] = existing_meta[key]
+                    if (
+                        key not in document
+                        and key != "text"
+                        and key not in _REMOVED_TRUST_FIELDS
+                    ):
+                        extra_document[key] = existing_meta[key]
 
             upload_result = self.client.documents.upload(
                 namespace_name=namespace, documents=[document]
