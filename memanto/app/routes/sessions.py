@@ -257,7 +257,10 @@ async def deactivate_agent(
         )
 
     try:
-        summary = get_session_service().end_session(agent_id)
+        # end_session_async() fetches the live Moorcheh namespace count and
+        # injects it as memories_created — logic owned by the service so all
+        # callers (HTTP + future CLI) get accurate counts.
+        summary = await get_session_service().end_session_async(agent_id)
         clear_session_cookie(response)
         return summary
     except SessionNotFoundError as e:
