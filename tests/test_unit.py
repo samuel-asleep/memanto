@@ -439,6 +439,42 @@ class TestMemoryWriteServiceDelete:
         )
         client.documents.upload.assert_called_once()
 
+    def test_update_memory_preserves_extra_fields_but_drops_removed_trust_fields(self):
+        from memanto.app.services.memory_write_service import MemoryWriteService
+
+        client = MagicMock()
+        client.documents.delete.return_value = {"status": "success"}
+        client.documents.upload.return_value = {"status": "queued"}
+        existing_memory = {
+            "id": "mem-1",
+            "type": "fact",
+            "title": "Original title",
+            "content": "Original content",
+            "actor_id": "tester",
+            "source": "manual",
+            "confidence": 0.8,
+            "status": "active",
+            "tags": [],
+            # Extra field not in the MemoryRecord schema (e.g. on-prem data_store.json).
+            "original_id": "orig-123",
+            # Trust field removed 2026-06-29; must not be resurrected on update.
+            "validation_count": 5,
+        }
+
+        with patch(
+            "memanto.app.services.memory_read_service.MemoryReadService.get_memory",
+            return_value=existing_memory,
+        ):
+            MemoryWriteService(client).update_memory(
+                "mem-1",
+                "memanto_agent_test-agent",
+                {"content": "Updated content"},
+            )
+
+        uploaded = client.documents.upload.call_args.kwargs["documents"][0]
+        assert uploaded.get("original_id") == "orig-123"
+        assert "validation_count" not in uploaded
+
 
 class TestMemoryReadServiceFormatting:
     def test_format_memory_item_preserves_falsey_metadata_values(self):
@@ -461,6 +497,59 @@ class TestMemoryReadServiceFormatting:
 
         assert formatted["confidence"] == 0.0
         assert formatted["tags"] == []
+
+
+class TestMemoryWriteServiceBatch:
+    def test_batch_store_counts_ok_upload_status_as_success(self):
+        from memanto.app.core import MemoryRecord
+        from memanto.app.services.memory_write_service import MemoryWriteService
+
+        client = MagicMock()
+        client.documents.upload.return_value = {"status": "ok"}
+        memories = [
+            MemoryRecord(
+                title="First preference",
+                content="Alex prefers concise status updates.",
+                agent_id="agent-1",
+                actor_id="user-1",
+                source="test",
+            ),
+            MemoryRecord(
+                title="Second preference",
+                content="Alex prefers weekly summaries.",
+                agent_id="agent-1",
+                actor_id="user-1",
+                source="test",
+            ),
+        ]
+
+        result = MemoryWriteService(client).batch_store_memories(memories)
+
+        assert result["successful"] == 2
+        assert result["failed"] == 0
+        assert [item["status"] for item in result["results"]] == ["ok", "ok"]
+
+    def test_batch_store_counts_failed_upload_status_case_insensitively(self):
+        from memanto.app.core import MemoryRecord
+        from memanto.app.services.memory_write_service import MemoryWriteService
+
+        client = MagicMock()
+        client.documents.upload.return_value = {"status": "FAILED"}
+        memories = [
+            MemoryRecord(
+                title="Failed write",
+                content="This write should be counted as failed.",
+                agent_id="agent-1",
+                actor_id="user-1",
+                source="test",
+            )
+        ]
+
+        result = MemoryWriteService(client).batch_store_memories(memories)
+
+        assert result["successful"] == 0
+        assert result["failed"] == 1
+        assert result["results"][0]["status"] == "FAILED"
 
 
 class TestForgetEndToEnd:
@@ -681,6 +770,67 @@ def test_conflict_report_handles_non_object_json_items(tmp_path, monkeypatch):
     conflicts = json.loads(conflicts_path.read_text(encoding="utf-8"))
     assert conflicts[0]["title"] == "Unparsed conflict report"
     assert conflicts[0]["description"] == '["not an object", 1]'
+
+
+def test_daily_summary_omits_unset_active_ai_model(tmp_path, monkeypatch):
+    """On-prem summary generation should omit ai_model when no active model is set."""
+    from unittest.mock import MagicMock
+
+    from memanto.app.services import daily_analysis_service as module
+
+    sessions_dir = tmp_path / "sessions"
+    summaries_dir = tmp_path / "summaries"
+    sessions_dir.mkdir()
+    (sessions_dir / "agent-1_2026-06-28_001_summary.md").write_text(
+        "# Session\n\nRemembered a project milestone.",
+        encoding="utf-8",
+    )
+
+    client = MagicMock()
+    client.answer.generate.return_value = {"answer": "# Daily Summary"}
+    monkeypatch.setattr(module, "get_moorcheh_client", lambda: client)
+    monkeypatch.setattr(module, "get_active_llm_model", lambda _: None)
+
+    service = module.DailyAnalysisService(
+        sessions_dir=sessions_dir,
+        summaries_dir=summaries_dir,
+    )
+    result = service.generate_summary("agent-1", "2026-06-28")
+
+    assert result["status"] == "success"
+    call_kwargs = client.answer.generate.call_args.kwargs
+    assert "ai_model" not in call_kwargs
+
+
+def test_conflict_report_omits_unset_active_ai_model(tmp_path, monkeypatch):
+    """On-prem conflict detection should omit ai_model when no active model is set."""
+    from unittest.mock import MagicMock
+
+    from memanto.app.services import daily_analysis_service as module
+
+    sessions_dir = tmp_path / "sessions"
+    summaries_dir = tmp_path / "summaries"
+    sessions_dir.mkdir()
+    (sessions_dir / "agent-1_2026-06-28_001_summary.md").write_text(
+        "# Session\n\nRemembered a project milestone.",
+        encoding="utf-8",
+    )
+
+    client = MagicMock()
+    client.answer.generate.return_value = {"answer": "[]"}
+    monkeypatch.setattr(module, "get_moorcheh_client", lambda: client)
+    monkeypatch.setattr(module, "get_active_llm_model", lambda _: None)
+    monkeypatch.setattr(module.Path, "home", classmethod(lambda cls: tmp_path))
+
+    service = module.DailyAnalysisService(
+        sessions_dir=sessions_dir,
+        summaries_dir=summaries_dir,
+    )
+    result = service.generate_conflict_report("agent-1", "2026-06-28")
+
+    assert result["status"] == "success"
+    call_kwargs = client.answer.generate.call_args.kwargs
+    assert "ai_model" not in call_kwargs
 
 
 if __name__ == "__main__":

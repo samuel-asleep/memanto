@@ -4,6 +4,7 @@ MEMANTO Web UI Router
 Serves the Web UI static files and provides UI-specific API endpoints.
 """
 
+import asyncio
 import ipaddress
 import os
 import re
@@ -328,18 +329,60 @@ def _update_onprem_answer(ans: dict) -> None:
     _config_manager.set_onprem_state(llm_provider=provider, llm_model=model)
 
 
+_restart_lock: "asyncio.Lock | None" = None
+
+
+def _get_restart_lock() -> "asyncio.Lock":
+    """Return (creating lazily) the module-level restart serialisation lock."""
+    global _restart_lock
+
+    if _restart_lock is None:
+        _restart_lock = asyncio.Lock()
+    return _restart_lock
+
+
 @router.post("/api/ui/onprem/restart")
 async def restart_onprem_backend(_: None = Depends(_require_local)):
     """Bounce the on-prem moorcheh stack so it re-reads ``~/.moorcheh/config.json``.
 
     ``moorcheh down`` + ``moorcheh up`` (with embedding flags recovered from
-    state.json / config.json). Blocks for up to ~6 minutes total (5min for
+    state.json / config.json). Waits up to ~6 minutes total (5min for
     ``up``, 60s for ``/health``).
+
+    A module-level async lock prevents concurrent restart requests from
+    interleaving ``down``/``up`` calls against the same Moorcheh stack,
+    which can leave the backend in an inconsistent state.
     """
+    import asyncio as _asyncio
     import subprocess
 
     import httpx as _httpx
 
+    async with _get_restart_lock():
+        # Schedule the restart as an independent task so that if this handler
+        # is cancelled (e.g. request timeout), the lock is not released while
+        # moorcheh down/up is still running in the worker thread.
+        # asyncio.shield() lets the inner task survive the handler's cancellation;
+        # the except block then waits for the subprocess to finish before the
+        # lock context-manager releases, keeping the serialisation guarantee.
+        inner = _asyncio.ensure_future(
+            _do_restart_onprem_backend(_asyncio, subprocess, _httpx)
+        )
+        try:
+            return await _asyncio.shield(inner)
+        except _asyncio.CancelledError:
+            try:
+                await inner
+            except Exception:
+                # Intentionally suppress secondary errors: the request was
+                # cancelled and we must re-raise CancelledError after waiting
+                # for the restart task to settle so the lock is released.
+                pass
+            raise
+
+
+async def _do_restart_onprem_backend(_asyncio, subprocess, _httpx):
+    """Execute the actual restart sequence (called under the restart lock)."""
     if _config_manager.get_backend() != Backend.ON_PREM:
         raise HTTPException(status_code=400, detail="Active backend is not on-prem.")
 
@@ -357,8 +400,10 @@ async def restart_onprem_backend(_: None = Depends(_require_local)):
 
     # `moorcheh down` is best-effort: if the stack isn't running, that's fine —
     # we still want to try `up` after.
+    # Use asyncio.to_thread so subprocess.run doesn't block the event loop.
     try:
-        subprocess.run(
+        await _asyncio.to_thread(
+            subprocess.run,
             ["moorcheh", "down"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -383,7 +428,7 @@ async def restart_onprem_backend(_: None = Depends(_require_local)):
     if embedding_key:
         up_args.extend(["--embedding-api-key", embedding_key])
     try:
-        subprocess.run(up_args, check=True, timeout=300)
+        await _asyncio.to_thread(subprocess.run, up_args, check=True, timeout=300)
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=500, detail=f"`moorcheh up` failed: {e}")
     except subprocess.TimeoutExpired:
@@ -393,14 +438,17 @@ async def restart_onprem_backend(_: None = Depends(_require_local)):
 
     health_url = (state.get("url") or "http://localhost:8080").rstrip("/") + "/health"
     deadline = time.time() + 60
-    while time.time() < deadline:
-        try:
-            resp = _httpx.get(health_url, timeout=2.0)
-            if resp.status_code == 200:
-                return {"status": "ok", "message": "Server restarted"}
-        except Exception:
-            pass
-        time.sleep(1.0)
+    async with _httpx.AsyncClient() as http:
+        while time.time() < deadline:
+            try:
+                resp = await http.get(health_url, timeout=2.0)
+                if resp.status_code == 200:
+                    return {"status": "ok", "message": "Server restarted"}
+            except Exception:
+                # During restart warm-up, transient network/connection
+                # failures are expected; keep retrying until the deadline.
+                pass
+            await _asyncio.sleep(1.0)
     raise HTTPException(
         status_code=500,
         detail=f"Server did not become healthy at {health_url} within 60s.",
